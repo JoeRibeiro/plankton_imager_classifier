@@ -1,22 +1,22 @@
 # Plankton Imager Classifier
-[[`paper`](google.com)]
-[[`dataset`](google.com)]
+[[`paper`](https://google.com)]
+[[`dataset`](https://google.com)]
 
-> The Plankton Imager Classifier predicts 49 different plankton and non-plankton classes from data recovered using the Plankton Imager (Pi-10)[https://www.planktonanalytics.com/]. 
+> The Plankton Imager Classifier predicts different plankton and non-plankton classes from data captured by the Plankton Imager ([Pi-10](https://www.planktonanalytics.com/)) sensor. 
 
-#![Img](./doc/Flowchart_SAMSelect.png)
+#![Img](./doc/istockphoto-1441350218-1024x1024.jpg)
 
 ## Getting Started
 ### Downloads
-* Download both files, and store in /data/
-    * Model weights from [[`link`]](google.com)
-    * Download the OSPAR data from [[`their website`]](https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/)
+Download both files and store in /data/
+* Model weights from [[`link`]](https://google.com)
+* Download the OSPAR data from [[`their website`]](https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/)
 
 ### Anaconda set-up
 
 ```
 # install the classifier and its dependencies
-pip install git+ssh://git@github.com/geoJoost/SAMSelect.git
+pip install git@github.com:geoJoost/plankton_imager_classifier.git
 
 # Setup the environment
 conda create --name mons
