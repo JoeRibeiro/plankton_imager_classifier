@@ -1,8 +1,4 @@
-# Script written by Joost van Dalen on 2025-06-06
-# Made for inference for the MONS project for 2024 data
-# For a huge part this script is based on 'Process_03_v01_Inference_on_new_data_ResNet50.ipynb' 
-# And on Process_04_v01_Inference_on_new_data_Combine_preds_csvs_ResNet50.ipynb by Jeroen Hoekendijk
-# This is a simpler rewrite purely for inference purposes
+
 import fastai
 from fastai.vision.all import *
 import pandas as pd
@@ -14,17 +10,7 @@ import glob
 import time
 from datetime import timedelta
 
-# # Hard-coded variables
-# model_weights = Path('Plankton_imager_v01_stage-2_Best') # ResNet50, with 49 classes
-# TRAIN_DATA_PATH = Path('data/DETAILED_merged')
-# #untarred_dir = Path(r'/lustre/backup/WUR/WMR/dalen024/MONS_data/2024_HERAS_UNTARRED/')
-# untarred_dir = Path(r'C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_v3')
-# CRUISE_NAME = 'HERAS'
-
-# # Model parameters
-# BS = 600
-# RANDOM_SEED = 42
-
+# UNUSED FUNCTION
 def merge_csv_files(folder_name, output_file, separator=','):
     dataframe = pd.concat([pd.read_csv(f, sep=separator) for f in glob.glob(f"{folder_name}/*.csv")], ignore_index=True)
     dataframe_tensor = torch.tensor(dataframe.iloc[:, 2:].to_numpy())
@@ -83,7 +69,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
     print(f'[INFO] This is Plankton Identifier version: \t{model_weights}')
     print(f'[INFO] The batch size is set at: \t\t{BATCH_SIZE}')
     print(f'[INFO] The loss function is: \t\t\t{learn.loss_func}')
-    print(f"[INFO] Number of categories available: \t{len(learn.dls.vocab)}\nWith the following labels: \n{learn.dls.vocab}\n")
+    print(f"[INFO] Number of categories available: \t\t{len(learn.dls.vocab)}\nWith the following labels: \n{learn.dls.vocab}\n")
 
     # Define output locations for results and logs
     results_dir = Path(f"results_{CRUISE_NAME}")
@@ -118,7 +104,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
                 print("=================================================")
                 continue
 
-            print(f"{len(imgs):,} images in {timestamp_path}")
+            print(f"[INFO] {len(imgs):,} images in {timestamp_path}")
             #print(f'Path first image: {str(imgs[0])}')
             #print(f'Path last image: {str(imgs[-1])}')
 

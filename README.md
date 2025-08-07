@@ -28,10 +28,12 @@ conda install pip
 pip install fastai
 
 # IMPORTANT: Modify this installation link to the correct CUDA/CPU version
+# Check the CUDA version using `nvidia-smi` in the command-line
+# If no CUDA is available, use the CPU installation; Be aware that this is significantly slower and discouraged for larger datasets
 # See: https://pytorch.org/get-started/locally/
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-conda install -c conda-forge pandas numpy polars seaborn xlsxwriter
+conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet
 ```
 
 ### Usage
@@ -47,4 +49,4 @@ python main.py --source_dir PATH/TO/YOUR/DATA --model_name ResNet50-detailed --c
 ```
 
 ## Dataset Requirements
-We require the following data to initiate the model:
+Use the original dataset structure as provided by the Pi-10 imager without modifications.

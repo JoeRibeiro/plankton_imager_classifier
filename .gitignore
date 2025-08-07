@@ -6,6 +6,7 @@ __pycache__/
 # Ignore the top-level directories
 /data/
 /models/
+/results*/
 /doc/figures
 /results_MONS_Tridens_january
 
