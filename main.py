@@ -67,7 +67,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Extract the arguments for use within the individual functions
-    SOURCE_BASE_DIR = args.source_base_dir
+    SOURCE_BASE_DIR = args.source_dir
     MODEL_NAME = args.model_name
     TRAIN_DATA_PATH = Path(args.train_data_path)
     BATCH_SIZE = args.batch_size
