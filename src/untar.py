@@ -60,6 +60,8 @@ def check_files_extracted(source_dir, target_base_dir):
         timestamp = os.path.basename(tar_file_relative).replace('.tar', '')
         target_dir = os.path.join(target_base_dir, date_dir, f"untarred_{timestamp}")
 
+        print(f"[INFO] Started processing: {target_dir}")
+
         # Check if the target directory exists and is not empty
         if not os.path.exists(target_dir):
             print(f"[INFO] Target directory not found: {target_dir}")
@@ -112,6 +114,7 @@ def extract_tars(source_dir, num_workers=4):
 
     if not tar_files:
         print("[INFO] No tar files found. Exiting.")
+        shutil.rmtree(target_base_dir) # Delete folder we just created
         raise ValueError(f'No tar files were found in {source_dir}. Exiting.')
 
     print(f"[INFO] Using {num_workers} parallel workers")

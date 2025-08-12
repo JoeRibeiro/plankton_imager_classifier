@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image, UnidentifiedImageError
 from threading import Lock
 import hashlib
-import tqdm
 
 def calculate_file_hash(file_path, chunk_size=65536):
     """Calculate MD5 hash of a file in chunks to handle large files"""
