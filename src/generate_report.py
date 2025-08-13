@@ -608,31 +608,6 @@ def plot_random_images(class_df, num_images=80):
     #print("[INFO] Finished plotting random images")
     return fig
 
-# Execute per-class summary
-# Main function to analyze and plot for a given class_id
-# @profile
-# def analyze_and_plot(df, class_id, cruise_path, OSPAR, CRUISE_NAME, DENSITY_CONSTANT=340):
-#     # Function for pre-processing the data, incl. binning into 10-minute intervals
-#     class_df, grouped_df, report_df = preprocess_data(df, class_id, DENSITY_CONSTANT)
-#     print(f"[INFO] Number of samples for class #{class_id}: {len(class_df)}")
-#     if class_df is None:
-#         return None, None, None
-    
-#     # Plotting code for showing confidence of top-5 most related classes (based on mean)
-#     #confidence_fig = plot_confidence(class_df)
-#     confidence_fig = "TEMP-TODO"
-
-#     # Plotting code for line-graph showcasing the density per date over 24-hours
-#     density_fig = plot_density_graph(grouped_df, class_id)
-
-#     # Plotting code for density on a geographic basis
-#     map_fig = plot_class_density_map(grouped_df, class_id, cruise_path, OSPAR, CRUISE_NAME)
-
-#     # Plotting random images to showcase the predicted targets
-#     img_fig = plot_random_images(class_df, num_images=80)
-
-#     return confidence_fig, density_fig, map_fig, img_fig, report_df
-
 # Automated report
 @profile
 def create_word_document(CLASSIFICATION_RESULTS, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME):

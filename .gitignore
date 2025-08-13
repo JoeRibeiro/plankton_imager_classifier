@@ -4,11 +4,12 @@ __pycache__/
 *$py.class
 
 # Ignore the top-level directories
-/data/
-/models/
-/results*/
+data/*
+models/*
+reports/*
+/results/
 /doc/figures
-/results_MONS_Tridens_january
+
 
 # C extensions
 *.so

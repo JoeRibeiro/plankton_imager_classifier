@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # Mandatory arguments
     parser.add_argument(
         '--source_dir', type=str,
-        #default="",
+        default="data/2024_HERAS",
         help='Base directory for source data captured by the Pi-10'
     )
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--cruise_name', type=str,
-        #default="",
+        default="2024_HERAS",
         help='Please input the name of the cruise/survey. Used for outputs and intermediate files.'
     )
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
     # Step 2: Remove corrupted .tif files
     # No return as modifications are made on the untarred dirs
-    remove_corrupted_files(untarred_dir, CRUISE_NAME, max_jobs)
+    # remove_corrupted_files(untarred_dir, CRUISE_NAME, max_jobs)
 
     # Step 3: Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)

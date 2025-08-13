@@ -72,7 +72,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
     print(f"[INFO] Number of categories available: \t\t{len(learn.dls.vocab)}\nWith the following labels: \n{learn.dls.vocab}\n")
 
     # Define output locations for results and logs
-    results_dir = Path(f"results_{CRUISE_NAME}")
+    results_dir = Path(f"data/{CRUISE_NAME}_results")
     results_dir.mkdir(exist_ok=True)
     log_file_path = results_dir / "error_log.txt"
 
@@ -90,7 +90,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
                 continue
 
             # Check if the CSV file already exists
-            csv_filename = results_dir / f"{date_dir}_{timestamp}_preds.csv"
+            csv_filename = results_dir / f"{CRUISE_NAME}_{date_dir}_{timestamp}.csv"
             if csv_filename.exists():
                 print(f"[INFO] CSV file already exists for {csv_filename}, skipping processing.")
                 continue

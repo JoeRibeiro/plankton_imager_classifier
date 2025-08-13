@@ -7,13 +7,12 @@
 #![Img](./doc/istockphoto-1441350218-1024x1024.jpg)
 
 ## Getting Started
-### Downloads
-Download both files and store in /data/
-* Model weights from [[`link`]](https://google.com)
-* Download the OSPAR data from [[`their website`]](https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/)
+### Data set-up
+1. Download model weights from PLACEHOLDER. Two options are available, the `ResNet50-detailed` being more extensive with 49 different possible classifications, and the `OSPAR` model predicting XX classes. Store these into `/models/`
+2. For creating a final report, download the OSPAR data from [[`their website`]](https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/) and store in `/data/`
+3. Store your raw, unaltered Pi10-data into a preferable location. We recommend storing it in `/data/`, but can be stored in any accessible location using the argument `--source_dir`
 
 ### Anaconda set-up
-
 ```
 # install the classifier and its dependencies
 pip install git@github.com:geoJoost/plankton_imager_classifier.git
@@ -50,7 +49,7 @@ python main.py --source_dir data/YOUR_DATA_PATH --model_name ResNet50-detailed -
 ```
 
 Options available in `main.py`:
-* `source_dir`: This should be the path to your data folder directly from the Pi-10. It is recommended to store this within the repository in /data/
+* `source_dir`: This should be the path to your data folder directly from the Pi-10. It is recommended to store this within the repository in `/data/`. Be aware that due to the untarring process within the pipeline, the volume of data will be doubled.
 * `model_name`: This corresponds to the model to use for inference. Options available are: `ospar` to use the OSPAR classifier (XX classes), or `ResNet50-detailed` to use the ResNet50 model which predicts 49 different plankton and non-plankton clases
 * `cruise_name`: This is used for intermediate outputs and for generating the final report. Any string is accepted without any spaces in the name, use '-' or '_' instead.
 * `batch_size`: Number of samples to use within `inference.py`. This is highly dependent on the available memory within your PC/HPC. Default value of 300 is used for 32GB of RAM.  
