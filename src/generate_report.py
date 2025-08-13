@@ -295,7 +295,7 @@ def create_cruise_path(df_background):
 
 # Confidence graph
 def plot_confidence(class_df):
-    print(f"[INFO] Started confidence plot #{class_df['pred_label'].first()}")
+    print(f"[INFO] Started confidence plot for {class_df['pred_label'].first()}")
     class_df = class_df.to_pandas() # Convert Polars to Pandas
 
     # Calculate mean confidence for each of the 49 columns
@@ -706,7 +706,7 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         gc.collect()
         print(f"[INFO] Number of uncollectable objects: {len(gc.garbage)}")
 
-        if class_id >= 3:
+        if class_id >= 5:
             break
 
     # Create Word document
@@ -854,31 +854,21 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
             table.cell(i, 0).text = display_name
             table.cell(i, 1).text = formatted_value
 
-        # Save figures to temporary files
-        confidence_fig_path = os.path.join(temp_dir, f'confidence_fig_{class_id}.png')
-        density_fig_path = os.path.join(temp_dir, f'density_fig_{class_id}.png')
-        map_fig_path = os.path.join(temp_dir, f'map_fig_{class_id}.png')
-        img_fig_path = os.path.join(temp_dir, f'img_fig_{class_id}.png')
-        confidence_fig.savefig(confidence_fig_path)
-        density_fig.savefig(density_fig_path)
-        map_fig.savefig(map_fig_path)
-        img_fig.savefig(img_fig_path)
-
         # Add figures to the document
         document.add_heading('Model confidence', level=2)
-        document.add_picture(confidence_fig_path, width=Inches(6))
+        document.add_picture(figure_paths['confidence'], width=Inches(6))
         document.add_paragraph(f"Figure showcasing the confidence distribution of the top-5 most related classes, which are determined by computing the mean confidence value of all non-target classes and selecting the five with the highest means, compared to {pred_label}.")
 
         document.add_heading('Temporal density', level=2)
-        document.add_picture(density_fig_path, width=Inches(6))
+        document.add_picture(figure_paths['density'], width=Inches(6))
         document.add_paragraph(f"Figure showcasing the daily density estimates for {pred_label} per 10 minutes.")
 
         document.add_heading('Spatio-temporal density', level=2)
-        document.add_picture(map_fig_path, width=Inches(6))
+        document.add_picture(figure_paths['map'], width=Inches(6))
         document.add_paragraph(f"Map showing mean density estimates for {pred_label} along the cruise transect. OSPAR eutrophication areas are plotted in the background with different colours.")
         
         document.add_heading('Classification examples', level=2)
-        document.add_picture(img_fig_path, width=Inches(6))
+        document.add_picture(figure_paths['img'], width=Inches(6))
         document.add_paragraph(f"Figure showing several images classified as {pred_label} with model confidence.")
 
         # Close the figures to free memory
