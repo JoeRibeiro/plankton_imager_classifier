@@ -1,9 +1,7 @@
 # Plankton code
-import torch
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
 import seaborn as sns
 from shapely.geometry import LineString
 from docx import Document
@@ -13,12 +11,9 @@ from fastai.vision.all import *
 import os
 from PIL import Image
 from PIL.ExifTags import GPSTAGS
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 import matplotlib.image as mpimg
 import polars as pl
-import gc
 
 from memory_profiler import profile
 
@@ -623,6 +618,13 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     if not csv_files:
         raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
     lazy_df = pl.concat([pl.scan_csv(str(file)) for file in csv_files])
+    
+    # Check if 'label' column exists and rename only if necessary
+    if "label" in lazy_df.collect_schema().keys():
+        lazy_df = lazy_df.rename({"label": "pred_id"})
+        print("[INFO] Renamed 'label' column to 'pred_id' for backwards compatibility")
+    else:
+        print("[INFO] No 'label' column found, continuing with 'pred_id'")
 
     # Then load in essential information to dynamically loop over the data later on
     total_rows = lazy_df.select(pl.len()).collect().item()
@@ -702,9 +704,9 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
             'figure_paths': figure_paths
         }
 
-        # Trigger garbage collection and get the number of uncollectable objects
-        gc.collect()
-        print(f"[INFO] Number of uncollectable objects: {len(gc.garbage)}")
+        # # Trigger garbage collection and get the number of uncollectable objects
+        # gc.collect()
+        # print(f"[INFO] Number of uncollectable objects: {len(gc.garbage)}")
 
         if class_id >= 5:
             break
