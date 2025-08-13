@@ -115,7 +115,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
 
                 testdf = pd.DataFrame()
                 testdf['id'] = imgs # Image filepaths
-                testdf['label'] = label_numeric # Predicted labels
+                testdf['pred_id'] = label_numeric # Predicted labels
 
                 for class_id in range(len(preds[0])):
                     testdf[class_id] = preds.numpy()[:, class_id]

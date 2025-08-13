@@ -5,12 +5,12 @@ import shutil
 # Custom imports
 from src.generate_report import get_pred_labels, clean_df
 
-def get_random_samples(CLASSIFICATION_RESULTS,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAME, n_images=100):
+def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAME, n_images=100):
     """
-    Randomly samples n_images from each class in CLASSIFICATION_RESULTS and organizes them into folders.
+    Randomly samples n_images from each class in results_dir and organizes them into folders.
 
     Parameters:
-    - CLASSIFICATION_RESULTS: Path to the CSV file containing classification results.
+    - results_dir: Path to the folder containing CSV files with classification results.
     - CRUISE_NAME: Name of the cruise (unused in this function but kept for compatibility).
     - TRAIN_DATA_PATH: Path to training data (used to get pred_labels).
     - MODEL_FILENAME: Model filename (used to get pred_labels).
@@ -20,7 +20,7 @@ def get_random_samples(CLASSIFICATION_RESULTS,  CRUISE_NAME, TRAIN_DATA_PATH, MO
 
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
     # First load in essential information to dynamically loop over the data later on
-    lazy_df  = pl.scan_csv(CLASSIFICATION_RESULTS)#, n_rows=200000)
+    lazy_df  = pl.scan_csv(f"{results_dir}/*.csv")
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = lazy_df.select(pl.col("pred_id").unique()).collect().to_series().to_list()
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")

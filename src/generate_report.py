@@ -24,7 +24,7 @@ from memory_profiler import profile
 
 @profile
 def get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME):
-        # Get label names
+    # Get label names
     # Quite convoluted, but fastest way to retrieve labels in a dynamic way
     block = DataBlock(
         blocks=(ImageBlock, CategoryBlock),
@@ -90,7 +90,7 @@ def get_geographic_data(image_path):
             return latitude, longitude
 
 @profile
-def clean_df(df_raw, pred_labels):
+def clean_df(df_raw, pred_labels, class_id):
     # TODO: Move single-use code outside this loop
     print(f"[INFO] Started cleaning DataFrame")
     # Evaluate number of predictions above 98% threshold
@@ -119,6 +119,9 @@ def clean_df(df_raw, pred_labels):
         "pred_id": range(len(pred_labels_list)),
         "pred_label": pred_labels_list
     })
+    
+    # Create an additional column for the confidence for the predicted class
+    df_preprocess = df_preprocess.with_columns(pl.col(f'{class_id}').alias('pred_conf'))
 
     # Join the original DataFrame with the pred_id_to_label DataFrame
     # This approach is significantly faster than .apply() or .map_elements()
@@ -164,9 +167,9 @@ def compute_class_statistics(df, total_images, DENSITY_CONSTANT):
             'Min Density': f"{pred_id_counts['density'].min():.2f}",
             'Mean Density': f"{pred_id_counts['density'].mean():.2f}",
             'Max Density': f"{pred_id_counts['density'].max():.2f}",
-            'Min Confidence': f"{class_df['conf'].min():.2f}",
-            'Mean Confidence': f"{class_df['conf'].mean():.2f}",
-            'Max Confidence': f"{class_df['conf'].max():.2f}"
+            'Min Confidence': f"{class_df['pred_conf'].min():.2f}",
+            'Mean Confidence': f"{class_df['pred_conf'].mean():.2f}",
+            'Max Confidence': f"{class_df['pred_conf'].max():.2f}"
         })
 
     return stats_dict
@@ -193,7 +196,7 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
             pl.col("id").first(),
             pl.col("date").first(),
             pl.col("time").first(),
-            pl.col("conf").mean().alias("conf"),
+            pl.col("pred_conf").mean().alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
             (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
@@ -220,9 +223,9 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
             grouped_df['pred_label'].first(),
             f"{total_class_images:,}",
             f"{percentage_total:.2f} %",
-            f"{class_df['conf'].min() * 100:.2f} %",
-            f"{class_df['conf'].max() * 100:.2f} %",
-            f"{class_df['conf'].mean() * 100:.2f} %",
+            f"{class_df['pred_conf'].min() * 100:.2f} %",
+            f"{class_df['pred_conf'].max() * 100:.2f} %",
+            f"{class_df['pred_conf'].mean() * 100:.2f} %",
             f"{grouped_df['density'].min():.2f} n/L",
             f"{grouped_df['density'].max():.2f} n/L",
             f"{grouped_df['density'].mean():.2f} n/L"
@@ -304,7 +307,7 @@ def plot_confidence(class_df):
 
     # Create a horizontal violin plot
     fig, ax = plt.subplots(figsize=(6, 5))
-    data_to_plot = [class_df[str(idx)] for idx in top_five_classes] + [class_df['conf']]
+    data_to_plot = [class_df[str(idx)] for idx in top_five_classes] + [class_df['pred_conf']]
     labels = [pred_labels[int(idx)].replace('_', '\n') for idx in top_five_classes] + [pred_labels[pred_id].replace('_', '\n')]
 
     # Create a list of colors, with a different color for the actual target
@@ -340,7 +343,7 @@ def plot_density_graph(class_df, class_id, DENSITY_CONSTANT):
             pl.col("id").first(),
             pl.col("date").first(),
             pl.col("time").first(),
-            pl.col("conf").mean().alias("conf"),
+            pl.col("pred_conf").mean().alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
             (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
@@ -422,7 +425,7 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
             pl.col("id").first(),
             pl.col("date").first(),
             pl.col("time").first(),
-            pl.col("conf").mean().alias("conf"),
+            pl.col("pred_conf").mean().alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
             (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
@@ -590,13 +593,13 @@ def plot_random_images(class_df, num_images=80):
         axes = axes.flatten()
 
     # Plot each image with its corresponding confidence value
-    for ax, (path, conf) in zip(axes, zip(sampled_paths, sampled_df['conf'])):
+    for ax, (path, pred_conf) in zip(axes, zip(sampled_paths, sampled_df['pred_conf'])):
         # TODO: Remove path
         path = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-16\untarred_0000\RawImages\pia7.2024-01-16.0000+N00000000.tif"
         img = mpimg.imread(path)
         ax.imshow(img)
         ax.axis('off')  # Hide axes
-        ax.set_title(f"Conf: {conf:.2f}", fontsize=6)  # Set the title with the confidence value
+        ax.set_title(f"Conf: {pred_conf:.2f}", fontsize=6)  # Set the title with the confidence value
 
     # Hide any unused subplots
     for ax in axes[len(sampled_paths):]:
@@ -610,18 +613,24 @@ def plot_random_images(class_df, num_images=80):
 
 # Automated report
 @profile
-def create_word_document(CLASSIFICATION_RESULTS, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME):
-    print(f"[INFO] Reading DataFrame: {CLASSIFICATION_RESULTS}")
+def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME):
+    print(f"[INFO] Reading DataFrames in folder: {results_dir}")
 
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
-    # First load in essential information to dynamically loop over the data later on
-    lazy_df  = pl.scan_csv(CLASSIFICATION_RESULTS)#, n_rows=200000)
+    # First create glob pattern to find available .csv files
+    csv_files = list(Path(results_dir).glob("*.csv"))
+
+    if not csv_files:
+        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
+    lazy_df = pl.concat([pl.scan_csv(str(file)) for file in csv_files])
+
+    # Then load in essential information to dynamically loop over the data later on
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = lazy_df.select(pl.col("pred_id").unique()).collect().to_series().to_list()
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
 
     # Get prediction labels for post-processing
-    get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME)
+    pred_labels = get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME)
 
     # Initialize data structures
     class_stats = [] # To store statistics in general table
@@ -634,7 +643,7 @@ def create_word_document(CLASSIFICATION_RESULTS, OSPAR, CRUISE_NAME, DENSITY_CON
     # Get cruise path information as geodata
     # As Background.tif is generated for each 10-minute bin, this allows for easier iteration
     df_background = lazy_df.filter(pl.col("id").str.contains("Background.tif")).collect()
-    _, df_background = clean_df(df_background) # Clean DataFrame
+    _, df_background = clean_df(df_background, pred_labels, class_id=47) # Clean DataFrame
     cruise_path = create_cruise_path(df_background) # GeoDataFrame
     minx, miny, maxx, maxy = cruise_path.total_bounds # Used for general text description
     start_date, end_date = df_background['datetime'].min(), df_background['datetime'].max()
@@ -652,7 +661,7 @@ def create_word_document(CLASSIFICATION_RESULTS, OSPAR, CRUISE_NAME, DENSITY_CON
         # Get and clean subset for current class
         subset_df = lazy_df.filter(pl.col("pred_id") == class_id).collect()
         print(f"[INFO] Processing {subset_df.height:,} rows for class {class_id}")
-        df_cleaned, _ = clean_df(subset_df, pred_labels)
+        df_cleaned, _ = clean_df(subset_df, pred_labels, class_id=class_id)
 
         # 1. Compute and store statistics (number of predictions, density, model confidence)
         stats_dict = compute_class_statistics(df_cleaned, total_rows, DENSITY_CONSTANT)
@@ -895,12 +904,12 @@ if __name__ == "__main__":
     # Hard-coded variables
     MODEL_FILENAME = Path('Plankton_imager_v01_stage-2_Best')
     TRAIN_DATA_PATH = Path('data/DETAILED_merged')
-    CLASSIFICATION_RESULTS = 'results_MONS_Tridens_january/MONS_Tridens_january_all_preds.csv'
+    results_dir = 'data/MONS-Pelagic-Fish_results'
     CRUISE_NAME = "MONS-Pelagic-Fish"
     OSPAR = 'data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp' # From: https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/
     DENSITY_CONSTANT = 340  # This constant is used in the R code for normalization into N per Liter (#/L)
 
     # Step 5: Generate the Word document detailing the cruise
-    document_path = create_word_document(CLASSIFICATION_RESULTS, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME)
+    document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME)
     print(f"Document generated at: {document_path}")
 
