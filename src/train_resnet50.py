@@ -1,0 +1,162 @@
+# Plankton Identifier - Classification from plankton imager
+# This script provides code to train and run a CNN to classify plankton from images from the plankton imager.
+# It treats this problem as a classification task. The labels are extracted from the folder names.
+
+# Import modules and set parameters
+import fastai
+from fastai.vision.all import *
+import torch
+import numpy as np
+from pathlib import Path
+import time
+
+# Custom imports
+from src.utils import save_data_visualizations
+
+def train_resnet50():
+    # Hard-coded variables
+    filename = 'Plankton_imager_TEST'  # Insert your filename, for repeated experiments with different training hyperparameters
+    bs = 50  # Insert highest working batchsize here (limited by hardware)
+    data_path = Path('data/DETAILED_merged')  # Data path
+
+    np.random.seed(3)
+
+    # Create new folder in /models/ to save .pth files
+    # FastAI hard-codes the model part, so have to seperate this for re-use down the line
+    models_root = f"{datetime.today().strftime('%Y-%m-%d')}_{filename}" # Use today's date for future note keeping
+    os.makedirs(os.path.join('models', models_root), exist_ok=True) # TODO: Prevent overwriting of models
+
+    # Set the device to use GPU if available, else fall back to CPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"[INFO] Device used: {device}")
+    print(f'[INFO] You are using FastAI version: {fastai.__version__}')
+
+    # Get image paths
+    fnames = get_image_files(data_path)
+
+    # Create dataset
+    block = DataBlock(
+        num_workers = 0, # This NEEDS to be zero for the code to work on Windows; see https://github.com/fastai/fastai/issues/2899
+        blocks=(ImageBlock, CategoryBlock),  # for regression, change this CategoryBlock
+        splitter=RandomSplitter(),
+        get_items=get_image_files,
+        get_y=parent_label,
+        item_tfms=Resize(300, ResizeMethod.Pad, pad_mode='zeros'),  # see page 73 book
+        batch_tfms=[*aug_transforms(
+                mult=1.0,
+                do_flip=True,
+                flip_vert=True,
+                max_rotate=0.2,
+                min_zoom=1.0,
+                max_zoom=1.1,
+                max_lighting=0.3,
+                max_warp=0.1,
+                p_affine=0.5,
+                p_lighting=0.5,
+                pad_mode='zeros'
+            ),
+            Normalize.from_stats(*imagenet_stats)
+        ]
+    )
+    dls = block.dataloaders(data_path, bs=bs)
+
+    # Create various data visualizations for context
+    save_data_visualizations(dls)
+
+    # Create Learner
+    learn = vision_learner(dls, resnet50, metrics=error_rate)  # creates pretrained model
+    learn.model.to(device)
+    print(f'[INFO] This is Plankton Identifier version: {filename}')  # See top
+    print(f'[INFO] The batchsize is set at: {bs}')  # See top
+    print(f'[INFO] The loss function is: {learn.loss_func}')  # Double check current loss func
+
+    # Save pretrained model
+    model_default = os.path.join(models_root, f'{filename}_stage-1_00')
+    learn.save(model_default) # Saves pretrained model, for repetitive trials
+
+    # LR finder for frozen model
+    # learn.lr_find()
+    plt.savefig("doc/training/lr_find.png")
+
+    # Function to time a block of code
+    def time_block(name):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                start_time = time.time()
+                result = func(*args, **kwargs)
+                end_time = time.time()
+                print(f"{name} completed in {end_time - start_time:.2f} seconds")
+                return result
+            return wrapper
+        return decorator
+
+    # Define training functions with timing
+    def train_stage1(model_file, lr_slice, epochs, save_file):
+        start_time = time.time()
+        learn.load(model_file)
+        learn.fit_one_cycle(epochs, lr_slice, cbs=SaveModelCallback(monitor='valid_loss', with_opt=True, fname='TempBestModel'))
+        learn.load('TempBestModel')
+        learn.save(save_file)
+        learn.recorder.plot_loss()
+        print(f"Training completed in {time.time() - start_time:.2f} seconds")
+
+    def train_stage2(model_file, lr_slice, epochs, save_file):
+        start_time = time.time()
+        learn.load(model_file)
+        learn.unfreeze()
+        learn.fit_one_cycle(epochs, lr_slice, cbs=SaveModelCallback(monitor='valid_loss', with_opt=True, fname='TempBestModel'))
+        learn.load('TempBestModel')
+        learn.save(save_file)
+        learn.recorder.plot_loss()
+        print(f"Training completed in {time.time() - start_time:.2f} seconds")
+
+    # Stage 1 training loops
+    print("Starting Stage 1 training...")
+    # First training run
+    train_stage1(model_default, slice(9e-3), 20, filename + '_stage-1_01')
+
+    # Additional training runs with different parameters
+    train_stage1(model_default, slice(9e-2), 20, models_root + '_stage-1_02')
+    train_stage1(model_default, slice(6e-2), 20, models_root + '_stage-1_03')
+    train_stage1(model_default, slice(5e-3), 20, models_root + '_stage-1_04')
+    train_stage1(model_default, slice(10e-3), 20, models_root + '_stage-1_05')
+    train_stage1(model_default, slice(9e-3), 50, models_root + '_stage-1_06')
+    train_stage1(model_default, slice(9e-2), 50, models_root + '_stage-1_07')
+    train_stage1(model_default, slice(6e-2), 50, models_root + '_stage-1_08')
+    train_stage1(model_default, slice(4e-4), 20, models_root + '_stage-1_09')
+    train_stage1(model_default, slice(7e-4), 20, models_root + '_stage-1_10')
+
+    # Select best stage-1 model
+    learn.load(filename + '_stage-1_02')  # Manually select best stage 1 model
+    learn.save(filename + '_stage-1_Best')
+    learn.show_results()
+
+    # Stage 2 training loops
+    print("Starting Stage 2 training...")
+    # First training run
+    train_stage2(filename + '_stage-1_Best', slice(1e-6, 1e-4), 20, filename + '_stage-2_01')
+    # Additional training runs with different parameters
+    train_stage2(filename + '_stage-1_Best', slice(3e-6, 3e-4), 20, filename + '_stage-2_02')
+    train_stage2(filename + '_stage-1_Best', slice(3e-5, 3e-3), 20, filename + '_stage-2_03')
+    train_stage2(filename + '_stage-1_Best', slice(3e-7, 3e-5), 20, filename + '_stage-2_04')
+    train_stage2(filename + '_stage-1_Best', slice(10e-4, 10e-3), 10, filename + '_stage-2_05')
+    train_stage2(filename + '_stage-1_Best', slice(10e-4, 10e-3), 20, filename + '_stage-2_06')
+    train_stage2(filename + '_stage-1_Best', slice(10e-4, 10e-3), 10, filename + '_stage-2_07')
+    train_stage2(filename + '_stage-1_Best', slice(10e-4, 10e-3), 50, filename + '_stage-2_08')
+    train_stage2(filename + '_stage-1_Best', slice(10e-4, 10e-3), 20, filename + '_stage-2_09')
+    train_stage2(filename + '_stage-1_Best', slice(3e-7, 3e-5), 50, filename + '_stage-2_10')
+
+    # Select best stage-2 model
+    learn.load(filename + '_stage-2_05')  # select best stage 2 model
+    learn.save(filename + '_stage-2_Best')
+    learn.show_results()
+
+    # Evaluation
+    interp = ClassificationInterpretation.from_learner(learn)
+    interp.plot_confusion_matrix(figsize=(20, 20))
+    interp.plot_top_losses(20, nrows=20)
+    interp.most_confused(min_val=2)  # p204 book
+
+    # Display multiple results (this was repeated many times in the notebook, likely just to show multiple examples)
+    for _ in range(10):
+        learn.show_results()

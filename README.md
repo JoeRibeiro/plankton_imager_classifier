@@ -67,3 +67,6 @@ To give a rough estimate on the total processing time required, below we share r
 
 ## Future implementations
 1. Refactor `remove_corrupted_files.py` to increase processing speed
+2. Implement try-except statement within `inference.py`, with the except using `remove_corrupted_files.py`
+3. Implement OSPAR models
+4. Remove FastAI implementation
