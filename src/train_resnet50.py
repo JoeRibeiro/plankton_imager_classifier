@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 
 # Custom imports
-from src.utils import save_data_visualizations
+from src.utils import save_data_visualizations,  save_evaluation_visualizations
 
 def train_resnet50():
     # Hard-coded variables
@@ -26,6 +26,9 @@ def train_resnet50():
     models_root = f"{datetime.today().strftime('%Y-%m-%d')}_{filename}" # Use today's date for future note keeping
     os.makedirs(os.path.join('models', models_root), exist_ok=True) # TODO: Prevent overwriting of models
 
+    images_root = os.path.join('doc', models_root)
+    os.makedirs(images_root, exist_ok=True)
+
     # Set the device to use GPU if available, else fall back to CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Device used: {device}")
@@ -36,7 +39,6 @@ def train_resnet50():
 
     # Create dataset
     block = DataBlock(
-        num_workers = 0, # This NEEDS to be zero for the code to work on Windows; see https://github.com/fastai/fastai/issues/2899
         blocks=(ImageBlock, CategoryBlock),  # for regression, change this CategoryBlock
         splitter=RandomSplitter(),
         get_items=get_image_files,
@@ -58,14 +60,14 @@ def train_resnet50():
             Normalize.from_stats(*imagenet_stats)
         ]
     )
-    dls = block.dataloaders(data_path, bs=bs)
+    dls = block.dataloaders(data_path, bs=bs, num_workers=0) # num_workers NEEDS to be zero for the code to work on Windows; see https://github.com/fastai/fastai/issues/2899
 
     # Create various data visualizations for context
     save_data_visualizations(dls)
 
     # Create Learner
     learn = vision_learner(dls, resnet50, metrics=error_rate)  # creates pretrained model
-    learn.model.to(device)
+    # learn.model.to(device)
     print(f'[INFO] This is Plankton Identifier version: {filename}')  # See top
     print(f'[INFO] The batchsize is set at: {bs}')  # See top
     print(f'[INFO] The loss function is: {learn.loss_func}')  # Double check current loss func
@@ -75,23 +77,12 @@ def train_resnet50():
     learn.save(model_default) # Saves pretrained model, for repetitive trials
 
     # LR finder for frozen model
-    # learn.lr_find()
+    learn.lr_find()
     plt.savefig("doc/training/lr_find.png")
-
-    # Function to time a block of code
-    def time_block(name):
-        def decorator(func):
-            def wrapper(*args, **kwargs):
-                start_time = time.time()
-                result = func(*args, **kwargs)
-                end_time = time.time()
-                print(f"{name} completed in {end_time - start_time:.2f} seconds")
-                return result
-            return wrapper
-        return decorator
 
     # Define training functions with timing
     def train_stage1(model_file, lr_slice, epochs, save_file):
+        print(f"[INFO] Started stage 1 training with settings: \nLearning rate: {lr_slice}\nNumber of epochs: {epochs}]\nOutput: {save_file}")
         start_time = time.time()
         learn.load(model_file)
         learn.fit_one_cycle(epochs, lr_slice, cbs=SaveModelCallback(monitor='valid_loss', with_opt=True, fname='TempBestModel'))
@@ -152,10 +143,8 @@ def train_resnet50():
     learn.show_results()
 
     # Evaluation
-    interp = ClassificationInterpretation.from_learner(learn)
-    interp.plot_confusion_matrix(figsize=(20, 20))
-    interp.plot_top_losses(20, nrows=20)
-    interp.most_confused(min_val=2)  # p204 book
+    save_evaluation_visualizations(learn, images_root)
+
 
     # Display multiple results (this was repeated many times in the notebook, likely just to show multiple examples)
     for _ in range(10):

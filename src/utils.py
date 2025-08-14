@@ -1,24 +1,19 @@
+import os
+import numpy as np
 import pandas as pd
+import polars as pl
+import seaborn as sns
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-import seaborn as sns
-from fastai.vision.all import *
-import os
-import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, MultipleLocator
-import matplotlib.image as mpimg
-import polars as pl
-import gc
+from fastai.vision.all import *
+from fastai.interpret import ClassificationInterpretation
 from memory_profiler import profile
 from pathlib import Path
 from PIL import Image
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-from pathlib import Path
+
 
 """ Functions used in training """
 def analyze_tif_files(main_directory):
@@ -123,7 +118,7 @@ def plot_category_examples(data_path, output_path='doc/train_example.png'):
     print(f"[INFO] Saved category visualization to {output_path}")
     plt.close()
 
-def save_data_visualizations(dls, base_path='doc'):
+def save_data_visualizations(dls, images_root):
     """
     Save various data visualizations to files in a training subdirectory.
 
@@ -132,38 +127,74 @@ def save_data_visualizations(dls, base_path='doc'):
         base_path: Base directory to save visualizations (default: 'doc')
     """
 
-    # Create output directory structure
-    training_path = Path(base_path) / 'training'
-    training_path.mkdir(parents=True, exist_ok=True)
-
     # 1. General data overview with transformations
     fig = dls.show_batch(nrows=2, ncols=5, unique=True)
     plt.suptitle('General Data Overview with Transformations (Training + Validation)', y=1.02)
-    plt.savefig(training_path / '01_data_overview.png', bbox_inches='tight', dpi=100)
-    print(f"[INFO] Saved general data overview to {training_path}/01_data_overview.png")
+    plt.savefig(os.path.join(images_root, '01_data_overview.png'), bbox_inches='tight', dpi=100)
     plt.close(fig)
 
     # 2. Training set with augmentations (most important visualization)
     fig = dls.train.show_batch(max_n=2, nrows=1, unique=True)
     plt.suptitle('Training Data with Augmentations', y=1.02)
-    plt.savefig(training_path / '02_train_augmentation.png', bbox_inches='tight', dpi=100)
-    print(f"[INFO] Saved training augmentation example to {training_path}/02_train_augmentation.png")
+    plt.savefig(os.path.join(images_root, '02_train_augmentation.png'), bbox_inches='tight', dpi=100)
     plt.close(fig)
 
     # 3. Validation set visualization
     fig = dls.valid.show_batch(max_n=10, nrows=1)
     plt.suptitle('Validation Data Sample', y=1.02)
-    plt.savefig(training_path / '03_validation_data.png', bbox_inches='tight', dpi=100)
-    print(f"[INFO] Saved validation data sample to {training_path}/03_validation_data.png")
+    plt.savefig(os.path.join(images-root, '03_validation_data.png'), bbox_inches='tight', dpi=100)
     plt.close(fig)
 
     # 4. Simple batch visualization
     fig = dls.show_batch(nrows=1, ncols=5)
     plt.suptitle('Random Data Sample', y=1.02)
-    plt.savefig(training_path / '04_random_sample.png', bbox_inches='tight', dpi=100)
-    print(f"[INFO] Saved random data sample to {training_path}/04_random_sample.png")
+    plt.savefig(os.path.join(images_root, '04_random_sample.png'), bbox_inches='tight', dpi=100)
     plt.close(fig)
 
-    print("[INFO] All visualizations saved successfully.")
+    print(f"[INFO] All training/validation examples saved to {images_root}.")
+
+def save_evaluation_visualizations(learn, images_root):
+    """
+    Save evaluation visualizations to the specified directory.
+
+    Args:
+        learn: FastAI Learner object
+        images_root: Path to directory where images should be saved
+    """
+    # Create output directory if it doesn't exist
+    Path(images_root).mkdir(parents=True, exist_ok=True)
+
+    # Create interpretation object
+    interp = ClassificationInterpretation.from_learner(learn)
+
+    # 1. Confusion matrix
+    plt.figure(figsize=(20, 20))
+    interp.plot_confusion_matrix(figsize=(20, 20))
+    plt.savefig(os.path.join(images_root, 'confusion_matrix.png'), bbox_inches='tight', dpi=100)
+    # print(f"[INFO] Saved confusion matrix to {cm_path}")
+    plt.close()
+
+    # 2. Top losses
+    plt.figure()
+    interp.plot_top_losses(20, nrows=20)
+    plt.savefig(os.path.join(images_root, 'top_losses.png'), bbox_inches='tight', dpi=100)
+    # print(f"[INFO] Saved top losses visualization to {losses_path}")
+    plt.close()
+
+    # 3. Most confused
+    plt.figure()
+    most_confused = interp.most_confused(min_val=2)
+    if most_confused:
+        # For most_confused, we need to save the returned figure
+        plt.savefig(os.path.join(images_root, 'most_confused.png'), bbox_inches='tight', dpi=100)
+    plt.close()
+
+    # 4. Show results (multiple examples)
+    plt.figure(figsize=(10, 10))
+    learn.show_results()
+    plt.savefig(os.path.join(images_root, 'results_examples.png'), bbox_inches='tight', dpi=100)
+    plt.close()
+
+    print(f"[INFO] Saved output to {images_root}")
 
 """ Functions used in inference """
