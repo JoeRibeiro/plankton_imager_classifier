@@ -142,7 +142,7 @@ def save_data_visualizations(dls, images_root):
     # 3. Validation set visualization
     fig = dls.valid.show_batch(max_n=10, nrows=1)
     plt.suptitle('Validation Data Sample', y=1.02)
-    plt.savefig(os.path.join(images-root, '03_validation_data.png'), bbox_inches='tight', dpi=100)
+    plt.savefig(os.path.join(images_root, '03_validation_data.png'), bbox_inches='tight', dpi=100)
     plt.close(fig)
 
     # 4. Simple batch visualization

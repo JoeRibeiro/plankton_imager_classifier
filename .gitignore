@@ -8,7 +8,7 @@ data/*
 models/*
 reports/*
 /results/
-/doc/figures
+/doc/*
 
 
 # C extensions

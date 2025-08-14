@@ -63,7 +63,7 @@ def train_resnet50():
     dls = block.dataloaders(data_path, bs=bs, num_workers=0) # num_workers NEEDS to be zero for the code to work on Windows; see https://github.com/fastai/fastai/issues/2899
 
     # Create various data visualizations for context
-    save_data_visualizations(dls)
+    save_data_visualizations(dls, images_root)
 
     # Create Learner
     learn = vision_learner(dls, resnet50, metrics=error_rate)  # creates pretrained model
