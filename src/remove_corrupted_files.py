@@ -2,8 +2,7 @@ import os
 import time
 import csv
 import shutil
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, UnidentifiedImageError
 from threading import Lock
 import hashlib

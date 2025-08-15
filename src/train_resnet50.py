@@ -145,7 +145,6 @@ def train_resnet50():
     # Evaluation
     save_evaluation_visualizations(learn, images_root)
 
-
     # Display multiple results (this was repeated many times in the notebook, likely just to show multiple examples)
     for _ in range(10):
         learn.show_results()

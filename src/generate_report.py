@@ -234,32 +234,6 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
 @profile
 def create_cruise_path(df_background):
     print("[INFO] Creating GeoDataFrame of cruise path")
-    
-    # TODO: Remove these lines
-    path_0000 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0000\RawImages\pia7.2024-01-18.0000+N00000269.tif"
-    path_0010 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0010\RawImages\pia7.2024-01-18.0010+N00000269.tif"
-    path_0020 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0020\RawImages\pia7.2024-01-18.0020+N00000269.tif"
-    path_0030 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0030\RawImages\pia7.2024-01-18.0030+N00000269.tif"
-    path_0000_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0000\Background.tif"
-    path_0010_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0010\Background.tif"
-    path_0020_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0020\Background.tif"
-    path_0030_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0030\Background.tif"
-
-    # Create a list of paths alternating among the defined paths
-    paths = [
-        path_0000 if i % 8 == 0 else
-        path_0010 if i % 8 == 1 else
-        path_0020 if i % 8 == 2 else
-        path_0030 if i % 8 == 3 else
-        path_0000_bg if i % 8 == 4 else
-        path_0010_bg if i % 8 == 5 else
-        path_0020_bg if i % 8 == 6 else
-        path_0030_bg
-        for i in range(len(df_background))
-    ]
-
-    # # Assign the paths to the 'id' column
-    df_background = df_background.with_columns(pl.Series("id", paths))
 
     # Create a new column for the latitude-longitude EXIF metadata
     df_background = df_background.with_columns(
@@ -427,33 +401,6 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
         ])
     )
 
-    # TODO: Remove these lines
-    path_0000 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0000\RawImages\pia7.2024-01-18.0000+N00000269.tif"
-    path_0010 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0010\RawImages\pia7.2024-01-18.0010+N00000269.tif"
-    path_0020 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0020\RawImages\pia7.2024-01-18.0020+N00000269.tif"
-    path_0030 = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0030\RawImages\pia7.2024-01-18.0030+N00000269.tif"
-    path_0000_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0000\Background.tif"
-    path_0010_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0010\Background.tif"
-    path_0020_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0020\Background.tif"
-    path_0030_bg = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-18\untarred_0030\Background.tif"
-
-    # Create a list of paths alternating among the defined paths
-    paths = [
-        path_0000 if i % 8 == 0 else
-        path_0010 if i % 8 == 1 else
-        path_0020 if i % 8 == 2 else
-        path_0030 if i % 8 == 3 else
-        path_0000_bg if i % 8 == 4 else
-        path_0010_bg if i % 8 == 5 else
-        path_0020_bg if i % 8 == 6 else
-        path_0030_bg
-        for i in range(len(grouped_df))
-    ]
-
-    # Assign the paths to the 'id' column
-    # TODO: Remove all these lines
-    grouped_df = grouped_df.with_columns(pl.Series("id", paths))
-
     # Create a new column for the latitude-longitude EXIF metadata
     grouped_df = grouped_df.with_columns(
         pl.col("id")
@@ -589,8 +536,6 @@ def plot_random_images(class_df, num_images=80):
 
     # Plot each image with its corresponding confidence value
     for ax, (path, pred_conf) in zip(axes, zip(sampled_paths, sampled_df['pred_conf'])):
-        # TODO: Remove path
-        path = r"C:\Users\dalen024\Documents\MONS_data\2024_MONS_Tridens_january_UNTARRED_TEST\2024-01-16\untarred_0000\RawImages\pia7.2024-01-16.0000+N00000000.tif"
         img = mpimg.imread(path)
         ax.imshow(img)
         ax.axis('off')  # Hide axes

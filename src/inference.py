@@ -9,6 +9,7 @@ import numpy as np
 import glob
 import time
 from datetime import timedelta
+import sys
 
 # UNUSED FUNCTION
 def merge_csv_files(folder_name, output_file, separator=','):
@@ -127,6 +128,8 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
                 with open(log_file_path, 'a') as log_file:
                     log_file.write(f"[ERROR] Error processing {timestamp_path}: {e}\n")
                 print(f"[ERROR] Error processing {timestamp_path}: {e}")
+                sys.exist(1) # Force code to stop
+
 
             print(f"[INFO] Finished processing: {timestamp_path}")
             print("=================================================")

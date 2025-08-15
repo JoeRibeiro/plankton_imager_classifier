@@ -57,6 +57,50 @@ Options available in `main.py`:
 ## Dataset Requirements
 Use the original dataset structure as provided by the Pi-10 imager without modifications.
 
+### Raw
+```
+CRUISE_NAME
+├── 2024-06-24
+│   ├── 1454.tar
+│   ├── 1458.tar
+│   ├── 1459.tar
+│   ├── 1500.tar
+│   ├── 1510.tar
+│   ├── 1520.tar
+│   ├── 1530.tar
+│   ├── 1540.tar
+│   ├── 1550.tar
+│   ├── 1600.tar
+│   ├── 1610.tar
+│   ├── 1620.tar
+│   ├── 1630.tar
+│   └── 1640.tar
+├── 2024-06-25
+│   ├── 0000.tar
+│   ├── 0010.tar
+│   ├── 0020.tar
+│   ├── 0030.tar
+│   ├── 0040.tar
+│   ├── 0050.tar
+│   ├── 0100.tar
+│   ├── 0110.tar
+```
+### Untarred
+```
+CRUISE_NAME_UNTARRED
+├── 2024-06-24
+│   ├── untarred_1454
+│   │   ├── Background.tif
+│   │   ├── Bubbles.txt
+│   │   ├── Cameralog.txt
+│   │   ├── HitsMisses.txt
+│   │   ├── RawImages\pia7.2024-06-24.1454+N00000000.tif
+│   │   ├── RawImages\pia7.2024-06-24.1454+N00000001.tif
+│   │   ├── RawImages\pia7.2024-06-24.1454+N00000002.tif
+│   │   ├── RawImages\pia7.2024-06-24.1454+N00000003.tif
+│   │   ├── RawImages\pia7.2024-06-24.1454+N00000004.tif
+```
+
 ## Time estimations
 To give a rough estimate on the total processing time required, below we share results on an experimental trial. A dataset of ~54GB was used on a local machine with 32GB of RAM and a NVIDIA RTX A5500. Time estimates are as follows:
 1. **Untarring**: 38 minutes
@@ -70,3 +114,6 @@ To give a rough estimate on the total processing time required, below we share r
 2. Implement try-except statement within `inference.py`, with the except using `remove_corrupted_files.py`
 3. Implement OSPAR models
 4. Remove FastAI implementation
+
+## Known errors
+1. If you get the following error message: `ModuleNotFoundError: No module named 'pyarrow'`, then use `pip install pyarrow` in your environment

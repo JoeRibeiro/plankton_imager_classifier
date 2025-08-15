@@ -1,6 +1,7 @@
 import polars as pl
 import os
 import shutil
+from pathlib import Path
 
 # Custom imports
 from src.generate_report import get_pred_labels, clean_df
@@ -19,8 +20,21 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAM
     """
 
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
-    # First load in essential information to dynamically loop over the data later on
-    lazy_df  = pl.scan_csv(f"{results_dir}/*.csv")
+    # First create glob pattern to find available .csv files
+    csv_files = list(Path(results_dir).glob("*.csv"))
+
+    if not csv_files:
+        print(f'[DEBUG] No CSV files found in {results_dir}')
+        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
+    lazy_df = pl.concat([pl.scan_csv(str(file)) for file in csv_files])
+    
+    # Check if 'label' column exists and rename only if necessary
+    if "label" in lazy_df.collect_schema().keys():
+        lazy_df = lazy_df.rename({"label": "pred_id"})
+        print("[INFO] Renamed 'label' column to 'pred_id' for backwards compatibility")
+    else:
+        print("[INFO] No 'label' column found, continuing with 'pred_id'")
+
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = lazy_df.select(pl.col("pred_id").unique()).collect().to_series().to_list()
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
@@ -36,8 +50,11 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAM
     # Iterate over each class to read in less volume, compared ot the entire dataset at once
     # Can still be reasonably high (>10,000,000 rows) with some classes (e.g., detritus)
     for class_id in total_classes:
+        # Sample the prediction label instead of using the numeric label
+        pred_label = pred_labels[class_id]
+
         print(f"{'-' * 50}")
-        print(f"[INFO] Processing class {class_id}")
+        print(f"[INFO] Processing class {pred_label}")
 
         # Get subset for current class, excluding Background.tif images
         subset_df = lazy_df.filter(
@@ -49,10 +66,15 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAM
         if subset_df.height == 0:
             print(f"[WARNING] Class {class_id} has no rows. Skipping.")
             continue
-        sampled_df = subset_df.sample(n_images, seed=42)
-        
-        # Sample the prediction label instead of using the numeric label
-        pred_label = pred_labels[class_id]
+        # Randomly sample rows from the DataFrame
+        try:
+            # Normally you should have more images predicted than num_samples
+            sampled_df = subset_df.sample(n=n_images, seed=42)
+        except:
+            # If you have less, we use with_replacement to handle this case
+            # But this should not occur, unless an extremely small dataset is used
+            print(f"[WARNING] Only {subset_df.height} images found for class {pred_label} compared to {n_images} required. Sampling {subset_df.height} images instead")
+            sampled_df = subset_df.sample(n=subset_df.height, seed=42) # No sample, just take all available images (<80img)
 
         # Create class directory
         class_dir = os.path.join(output_dir, f"{str(class_id)}_{pred_label}")
@@ -61,7 +83,7 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAM
 
         # We also save the subset_df for cross-referencing and additional metadata
         excel_path = os.path.join(class_dir, f"{pred_label}_sampled.xlsx")
-        cleaned_df, _ = clean_df(sampled_df, pred_labels) # Add proper datetime column to the document 
+        cleaned_df, _ = clean_df(sampled_df, pred_labels, class_id) # Add proper datetime column to the document 
         cleaned_df.write_excel(excel_path, autofit=True) # Excel instead of CSV for easier use
         
         # Copy files
