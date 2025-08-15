@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--batch_size', type=int,
-        default=128, # Increase for larger machines; 80GB GPU can use batch size of 600
+        default=128, # Increase for larger machines; 80GB GPU can use batch_size of 600
         help='Batch size for processing. Adapt based on memory availability.'
     )
 

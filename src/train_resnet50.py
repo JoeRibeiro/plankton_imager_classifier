@@ -1,3 +1,5 @@
+""" WIP """
+
 # Plankton Identifier - Classification from plankton imager
 # This script provides code to train and run a CNN to classify plankton from images from the plankton imager.
 # It treats this problem as a classification task. The labels are extracted from the folder names.
@@ -15,8 +17,8 @@ from src.utils import save_data_visualizations,  save_evaluation_visualizations
 
 def train_resnet50():
     # Hard-coded variables
-    filename = 'Plankton_imager_TEST'  # Insert your filename, for repeated experiments with different training hyperparameters
-    bs = 50  # Insert highest working batchsize here (limited by hardware)
+    filename = 'Plankton_imager_TEST'  # filename for repeated experiments with different training hyperparameters
+    bs = 64  
     data_path = Path('data/DETAILED_merged')  # Data path
 
     np.random.seed(3)
@@ -33,9 +35,6 @@ def train_resnet50():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Device used: {device}")
     print(f'[INFO] You are using FastAI version: {fastai.__version__}')
-
-    # Get image paths
-    fnames = get_image_files(data_path)
 
     # Create dataset
     block = DataBlock(

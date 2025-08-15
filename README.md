@@ -32,7 +32,7 @@ pip install fastai
 # See: https://pytorch.org/get-started/locally/
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geopandas python-docx memory_profiler
+conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geopandas python-docx memory_profiler pyarrow
 ```
 
 ### Usage
@@ -116,4 +116,5 @@ To give a rough estimate on the total processing time required, below we share r
 4. Remove FastAI implementation
 
 ## Known errors
-1. If you get the following error message: `ModuleNotFoundError: No module named 'pyarrow'`, then use `pip install pyarrow` in your environment
+1. If you get the following error message: `ModuleNotFoundError: No module named 'pyarrow'`, then use `pip install pyarrow` in your environment.
+2. If the batch fails due to corrupted files, activate the function `remove_corrupted_files()` in `main.py`. This will significantly increase the processing time as it runs over all files. Future implementations will integrate this function within the try-except in `inference.py`.

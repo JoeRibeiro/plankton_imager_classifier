@@ -1,19 +1,13 @@
 import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
-import polars as pl
 import seaborn as sns
-import geopandas as gpd
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from matplotlib.lines import Line2D
-from matplotlib.ticker import FuncFormatter, MultipleLocator
+from PIL import Image
 from fastai.vision.all import *
 from fastai.interpret import ClassificationInterpretation
-from memory_profiler import profile
-from pathlib import Path
-from PIL import Image
-
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 """ Functions used in training """
 def analyze_tif_files(main_directory):
@@ -197,4 +191,175 @@ def save_evaluation_visualizations(learn, images_root):
 
     print(f"[INFO] Saved output to {images_root}")
 
-""" Functions used in inference """
+"""Functions used in model evaluation """
+def plot_class_distribution(images_root, sorted_labels, dpi=300):
+    """
+    Plot a histogram of class distribution and save it to the specified directory.
+
+    Parameters:
+    - images_root: Path to save the output image.
+    - sorted_labels: Pandas Series containing the class labels.
+    - dpi: Dots per inch for the saved image (default: 300).
+    """
+    # Create the directory if it doesn't exist
+    os.makedirs(images_root, exist_ok=True)
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    sorted_labels.value_counts().sort_index().plot(kind='bar', color='skyblue')
+    plt.title('Classes in test-set', fontsize=16)
+    plt.xlabel('Label', fontsize=12)
+    plt.ylabel('Frequency', fontsize=12)
+    plt.xticks(rotation=90, ha='right', fontsize=8)
+    plt.yticks(fontsize=8)
+
+    # Save the plot
+    output_path = os.path.join(images_root, 'class_distribution.png')
+    plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
+    plt.close()
+
+    print(f"[INFO] Saved class distribution plot to {output_path}")
+
+def plot_confusion_matrix(images_root, filename, merged_df, y_true, y_pred, dpi=300):
+    """
+    Plot a confusion matrix heatmap and save it to the specified directory.
+
+    Parameters:
+    - images_root: Path to save the output image.
+    - merged_df: DataFrame containing the label and pred_label columns.
+    - y_true: True labels.
+    - y_pred: Predicted labels.
+    - dpi: Dots per inch for the saved image (default: 300).
+    """
+    # Create the directory if it doesn't exist
+    os.makedirs(images_root, exist_ok=True)
+
+    # Define class labels
+    unique_classes = sorted(merged_df['label'].unique())
+
+    # Compute the confusion matrix
+    cm = confusion_matrix(y_true, y_pred, labels=unique_classes)
+
+    # Create a custom annotations array where zeroes are replaced with empty strings
+    annotations = np.where(cm == 0, '', cm)
+
+    # Create the plot
+    plt.figure(figsize=(20, 14))
+    sns.heatmap(cm, annot=annotations, fmt='',
+                cmap='Blues',
+                cbar=True,
+                xticklabels=unique_classes,
+                yticklabels=unique_classes,
+                annot_kws={"size": 10},
+                linewidths=0.5,
+                linecolor='white')
+
+    plt.xlabel('Predicted labels', fontsize=14)
+    plt.ylabel('True labels', fontsize=14)
+    plt.title(f'Confusion Matrix ({filename}', fontsize=16)
+    plt.xticks(fontsize=12, rotation=-90)
+    plt.yticks(fontsize=12)
+
+    # Save the plot
+    output_path = os.path.join(images_root, 'confusion_matrix.png')
+    plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
+    plt.close()
+
+    print(f"[INFO] Saved confusion matrix plot to {output_path}")
+
+def plot_classification_metrics(images_root, merged_df, dpi=300):
+    """
+    Plot precision, recall, and F1 scores by class and save to the specified directory.
+
+    Parameters:
+    - images_root: Path to save the output image.
+    - merged_df: DataFrame containing the label and pred_label columns.
+    - dpi: Dots per inch for the saved image (default: 300).
+    """
+    # Create the directory if it doesn't exist
+    os.makedirs(images_root, exist_ok=True)
+
+    # Font size variable
+    font_size = 18
+
+    # Set global font size
+    plt.rcParams.update({'font.size': font_size})
+
+    # Get unique classes sorted
+    unique_classes = sorted(merged_df['label'].unique())
+
+    # Initialize dictionaries for metrics
+    precision_scores = {}
+    recall_scores = {}
+    f1_scores = {}
+
+    # Calculate metrics
+    for class_label in unique_classes:
+        precision = precision_score(merged_df['label'], merged_df['pred_label'], labels=[class_label], average='macro', zero_division=0)
+        recall = recall_score(merged_df['label'], merged_df['pred_label'], labels=[class_label], average='macro', zero_division=0)
+        f1 = f1_score(merged_df['label'], merged_df['pred_label'], labels=[class_label], average='macro', zero_division=0)
+        
+        precision_scores[class_label] = precision
+        recall_scores[class_label] = recall
+        f1_scores[class_label] = f1
+
+    # Convert to lists for plotting
+    sorted_classes = sorted(precision_scores.keys())
+    sorted_precisions = [precision_scores[class_label] for class_label in sorted_classes]
+    sorted_recalls = [recall_scores[class_label] for class_label in sorted_classes]
+    sorted_f1s = [f1_scores[class_label] for class_label in sorted_classes]
+
+    # Calculate mean values (with protection against empty lists)
+    if sorted_precisions:
+        mean_precision = sum(sorted_precisions) / len(sorted_precisions)
+        mean_recall = sum(sorted_recalls) / len(sorted_recalls)
+        mean_f1 = sum(sorted_f1s) / len(sorted_f1s)
+    else:
+        mean_precision = mean_recall = mean_f1 = 0
+
+    # Create the plot
+    fig, axes = plt.subplots(1, 3, figsize=(20, 10), sharey=True)
+
+    for ax in axes:
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+    # Plot Precision
+    axes[0].barh([str(class_label) for class_label in sorted_classes], sorted_precisions, color='skyblue')
+    axes[0].set_xlabel('Precision [%]')
+    axes[0].set_title(f'Precision (μ={mean_precision*100:.1f})%')
+    axes[0].grid(axis='x', linestyle='--', alpha=0.7)
+    for i, class_label in enumerate(sorted_classes):
+        axes[0].text(sorted_precisions[i] + 0.01, i, f'{sorted_precisions[i]*100:.0f}', va='center', ha='left')
+
+    # Plot Recall
+    axes[1].barh([str(class_label) for class_label in sorted_classes], sorted_recalls, color='salmon')
+    axes[1].set_xlabel('Recall [%]')
+    axes[1].set_title(f'Recall (μ={mean_recall*100:.1f}%)')
+    axes[1].grid(axis='x', linestyle='--', alpha=0.7)
+    for i, class_label in enumerate(sorted_classes):
+        axes[1].text(sorted_recalls[i] + 0.01, i, f'{sorted_recalls[i]*100:.0f}', va='center', ha='left')
+
+    # Plot F1 Score
+    axes[2].barh([str(class_label) for class_label in sorted_classes], sorted_f1s, color='lightgreen')
+    axes[2].set_xlabel('F1 score [%]')
+    axes[2].set_title(f'F1 score (μ={mean_f1*100:.1f})')
+    axes[2].grid(axis='x', linestyle='--', alpha=0.7)
+    for i, class_label in enumerate(sorted_classes):
+        axes[2].text(sorted_f1s[i] + 0.01, i, f'{sorted_f1s[i]*100:.0f}%', va='center', ha='left')
+
+    # plt.suptitle('ResNet50: Precision, Recall, and F1 Scores by Class', fontsize=30)
+    plt.tight_layout()
+    # plt.subplots_adjust(top=0.85)
+
+    # Save the plot
+    output_path = os.path.join(images_root, 'classification_metrics.png')
+    plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
+    plt.close()
+
+    # Reset font size to default
+    plt.rcParams.update({'font.size': plt.rcParamsDefault['font.size']})
+
+    print(f"[INFO] Saved classification metrics plot to {output_path}")
+
+""" Functions used in inference pipeline """

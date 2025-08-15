@@ -116,8 +116,13 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
 
                 testdf = pd.DataFrame()
                 testdf['id'] = imgs # Image filepaths
-                testdf['pred_id'] = label_numeric # Predicted labels
+                testdf['pred_id'] = label_numeric # Predicted ids
 
+                # Create new column for prediction labels
+                label_mapping = {i: class_name for i, class_name in enumerate(learn.dls.vocab)}
+                testdf['pred_label'] = testdf['pred_id'].map(label_mapping)
+
+                # Add confidence scores of the other classes
                 for class_id in range(len(preds[0])):
                     testdf[class_id] = preds.numpy()[:, class_id]
 
