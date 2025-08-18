@@ -553,7 +553,7 @@ def plot_random_images(class_df, num_images=80):
 
 # Automated report
 @profile
-def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME):
+def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME):
     print(f"[INFO] Reading DataFrames in folder: {results_dir}")
 
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
@@ -577,7 +577,7 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
 
     # Get prediction labels for post-processing
-    pred_labels = get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME)
+    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
 
     # Initialize data structures
     class_stats = [] # To store statistics in general table
@@ -837,16 +837,16 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
 
     return document_path
 
-if __name__ == "__main__":
-    # Hard-coded variables
-    MODEL_FILENAME = Path('Plankton_imager_v01_stage-2_Best')
-    TRAIN_DATA_PATH = Path('data/DETAILED_merged')
-    results_dir = 'data/MONS-Pelagic-Fish_results'
-    CRUISE_NAME = "MONS-Pelagic-Fish"
-    OSPAR = 'data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp' # From: https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/
-    DENSITY_CONSTANT = 340  # This constant is used in the R code for normalization into N per Liter (#/L)
+# if __name__ == "__main__":
+#     # Hard-coded variables
+#     MODEL_FILENAME = Path('Plankton_imager_v01_stage-2_Best')
+#     TRAIN_DATASET = Path('data/DETAILED_merged')
+#     results_dir = 'data/MONS-Pelagic-Fish_results'
+#     CRUISE_NAME = "MONS-Pelagic-Fish"
+#     OSPAR = 'data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp' # From: https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/
+#     DENSITY_CONSTANT = 340  # This constant is used in the R code for normalization into N per Liter (#/L)
 
-    # Step 5: Generate the Word document detailing the cruise
-    document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, MODEL_FILENAME)
-    print(f"Document generated at: {document_path}")
+#     # Step 5: Generate the Word document detailing the cruise
+#     document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME)
+#     print(f"Document generated at: {document_path}")
 

@@ -69,7 +69,7 @@ if __name__ == "__main__":
     # Extract the arguments for use within the individual functions
     SOURCE_BASE_DIR = args.source_dir
     MODEL_NAME = args.model_name
-    TRAIN_DATA_PATH = Path(args.train_data_path)
+    TRAIN_DATASET = Path(args.train_data_path)
     BATCH_SIZE = args.batch_size
     CRUISE_NAME = args.cruise_name
     OSPAR = args.ospar
@@ -100,13 +100,13 @@ if __name__ == "__main__":
 
     # Step 3: Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)
-    results_dir = conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untarred_dir, CRUISE_NAME, BATCH_SIZE)
+    results_dir = conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATASET, untarred_dir, CRUISE_NAME, BATCH_SIZE)
 
     # Step 4: Randomly select n samples of each predicted class for validation and future training iterations
-    get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, model_weights, n_images=100)
+    get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, model_weights, n_images=100)
 
     # Step 5: Generate the Word document detailing the cruise
-    document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATA_PATH, model_weights)
+    document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, model_weights)
 
     # Step 6: Compress original data for long-term storage
     # Not implemented yet

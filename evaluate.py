@@ -13,14 +13,7 @@ from sklearn.metrics import confusion_matrix
 # Custom imports
 from src.utils import plot_class_distribution, plot_confusion_matrix, plot_classification_metrics
 
-# Hard-coded variables
-filename = 'Plankton_imager_v01b' # Insert your filename, for repeated experiments with different trainings hyperparameters (see below)
-bs = 128 # Insert highest working batchsize here
-ground_truth_file_path = 'data/DETAILED_test.csv'
-path = Path('data/DETAILED_merged')
-images_path = Path('data/DETAILED_test')
-
-def get_model_predictions(filename, bs, images_path, ground_truth_file_path, path):
+def evaluate_model(MODEL_NAME, BATCH_SIZE, images_path, REFERENCE_PATH, TRAIN_DATASET):
     np.random.seed(3)
 
     # Get image paths
@@ -45,7 +38,7 @@ def get_model_predictions(filename, bs, images_path, ground_truth_file_path, pat
                                 Normalize.from_stats(*imagenet_stats)] 
                     )
 
-    dls = block.dataloaders(path, bs=bs)
+    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE)
 
 
     # Create Learner
@@ -54,20 +47,17 @@ def get_model_predictions(filename, bs, images_path, ground_truth_file_path, pat
                     ); # creates pretrained model
     learn.model = torch.nn.DataParallel(learn.model) # Parallels computations over multiplle GPUs
 
-    print('This is Plankton Identifier version: ' + filename) # See top
-    print('The batchsize is set at:', bs) # See top
-    print('The loss function is:', learn.loss_func) # Double check current loss func
+    print(f'This is Plankton Identifier version: {MODEL_NAME}')
+    print(f'The batchsize is set at: {BATCH_SIZE}')
+    print(f'The loss function is: {learn.loss_func}') # Double check current loss func
+    print(f'[INFO] {len(imgs):,} images in {images_path}')
+
 
     learn.load('Plankton_imager_v01_stage-2_Best', weights_only=False)
-
-    # Path towards model
-    #PathModel = Path('data_test');
-    
 
     # Get images to predict
     imgs = get_image_files(images_path);imgs.sort();imgs
 
-    print(f'[INFO] {len(imgs):,} images in {images_path}')
     print(f'The path to the first image is: {imgs[0]}')
     print(f'The path to the last image is: {imgs[-1]}')
 
@@ -89,7 +79,7 @@ def get_model_predictions(filename, bs, images_path, ground_truth_file_path, pat
     test_df['pred_label'] = test_df['pred_id'].map(label_mapping)
 
     # Load the ground truth CSV file
-    ground_truth_df = pd.read_csv(ground_truth_file_path)
+    ground_truth_df = pd.read_csv(REFERENCE_PATH)
 
     # Rename 'Subdirectory' column to 'Label'
     # TODO: Fix the entire label CSV; either automated from file structure
@@ -98,18 +88,8 @@ def get_model_predictions(filename, bs, images_path, ground_truth_file_path, pat
     # Merge test_df and ground_truth_df on 'Filename'
     merged_df = pd.merge(test_df, ground_truth_df, on='filename', how='inner')
 
-    # # Define the desired column order
-    # # Ensure that all the columns are present in merged_df before reordering
-    # desired_order = ['Path', 'Filename', 'Label', 'Pred'] + list(preds_df.columns)
-
-    # # Ensure that all columns in desired_order exist in merged_df
-    # existing_columns = [col for col in desired_order if col in merged_df.columns]
-
-    # # Create the Final DataFrame with reordered columns
-    # merged_df = merged_df[existing_columns]
-
     # Export table to .csv file for downstream applications
-    csv_path = os.path.join("data", f"{filename}_evaluate.csv")
+    csv_path = os.path.join("data", f"{MODEL_NAME}_evaluate.csv")
     merged_df.to_csv(csv_path, index=False, float_format='%.9f')
 
     # Extracting the true labels and predictions
@@ -136,124 +116,22 @@ def get_model_predictions(filename, bs, images_path, ground_truth_file_path, pat
     sorted_labels = merged_df['label'].sort_values()
 
     # Create images root
-    images_root = f"doc/{datetime.today().strftime('%Y-%m-%d')}_{filename}_eval"
+    images_root = f"doc/{datetime.today().strftime('%Y-%m-%d')}_{MODEL_NAME}_eval"
     os.makedirs(images_root, exist_ok=True)
 
     # Call visualization functions
     plot_class_distribution(images_root, sorted_labels)
-    plot_confusion_matrix(images_root, filename, merged_df, y_true, y_pred)
+    plot_confusion_matrix(images_root, MODEL_NAME, merged_df, y_true, y_pred)
     plot_classification_metrics(images_root, merged_df)
-
-    # # Plot the histogram
-    # plt.figure(figsize=(10, 6))
-    # sorted_labels.value_counts().sort_index().plot(kind='bar', color='skyblue')
-    # plt.title('Classes in test-set', fontsize=16)
-    # plt.xlabel('Label', fontsize=12)
-    # plt.ylabel('Frequency', fontsize=12)
-    # plt.xticks(rotation=90, ha='right', fontsize=8)  # Reduce font size for x-axis labels
-    # plt.yticks(fontsize=8)  # Reduce font size for y-axis labels
-    # plt.show()
-
-    # # Define your class labels
-    # unique_classes = sorted(merged_df['label'].unique())
-
-    # # Compute the confusion matrix
-    # cm = confusion_matrix(y_true, y_pred, labels=unique_classes)
-
-    # # Create a custom annotations array where zeroes are replaced with empty strings
-    # annotations = np.where(cm == 0, '', cm)
-
-    # # Create a heatmap to visualize the confusion matrix
-    # plt.figure(figsize=(20, 14))
-
-    # sns.heatmap(cm, annot=annotations, fmt='',  # Pass the custom annotations here
-    #             cmap='Blues',
-    #             cbar=True, 
-    #             xticklabels=unique_classes, 
-    #             yticklabels=unique_classes,
-    #             annot_kws={"size": 10},  # Set the font size for annotations
-    #             linewidths=0.5,  # Optional: Add lines between cells for better readability
-    #             linecolor='white'  # Optional: Line color between cells
-    #         )
-
-    # plt.xlabel('Predicted labels', fontsize=14)
-    # plt.ylabel('True labels', fontsize=14)
-    # plt.title('Confusion Matrix ResNet50', fontsize=16)
-    # plt.xticks(fontsize=12, rotation=-90)
-    # plt.yticks(fontsize=12)
-
-    # plt.show()
-
-    # # Font size variable
-    # font_size = 18  # Change this value to adjust font size
-
-    # # Set global font size
-    # plt.rcParams.update({'font.size': font_size})
-
-    # # Initialize dictionaries for metrics
-    # precision_scores = {}
-    # recall_scores = {}
-    # f1_scores = {}
-
-    # # Calculate metrics
-    # for cls in unique_classes:
-    #     # Compute precision, recall, and F1 score for each class
-    #     precision = precision_score(merged_df['label'], 
-    #                                 merged_df['pred_label'], labels=[cls], average='macro', zero_division=0)
-    #     recall = recall_score(merged_df['label'], 
-    #                         merged_df['pred_label'], labels=[cls], average='macro', zero_division=0)
-    #     f1 = f1_score(merged_df['label'], 
-    #                 merged_df['pred_label'], labels=[cls], average='macro', zero_division=0)
-    #     precision_scores[cls] = precision
-    #     recall_scores[cls] = recall
-    #     f1_scores[cls] = f1
-
-    # # Convert to lists for plotting
-    # sorted_classes = sorted(precision_scores.keys())
-    # sorted_precisions = [precision_scores[cls] for cls in sorted_classes]
-    # sorted_recalls = [recall_scores[cls] for cls in sorted_classes]
-    # sorted_f1s = [f1_scores[cls] for cls in sorted_classes]
-
-    # # Calculate mean values
-    # mean_precision = sum(sorted_precisions) / len(sorted_precisions)
-    # mean_recall = sum(sorted_recalls) / len(sorted_recalls)
-    # mean_f1 = sum(sorted_f1s) / len(sorted_f1s)
-
-    # # Plotting
-    # fig, axes = plt.subplots(1, 3, figsize=(30, 20), sharey=True)
-
-    # # Plot Precision
-    # axes[0].barh([str(cls) for cls in sorted_classes], sorted_precisions, color='skyblue')
-    # axes[0].set_xlabel('Precision [%]')
-    # axes[0].set_title(f'Precision for Each Class\nMean Precision: {mean_precision*100:.1f}%')
-    # axes[0].grid(axis='x', linestyle='--', alpha=0.7)
-    # # Add mean values for each class to the precision panel
-    # for i, cls in enumerate(sorted_classes):
-    #     axes[0].text(sorted_precisions[i] + 0.01, i, f'{sorted_precisions[i]*100:.0f}', va='center', ha='left')
-
-    # # Plot Recall
-    # axes[1].barh([str(cls) for cls in sorted_classes], sorted_recalls, color='salmon')
-    # axes[1].set_xlabel('Recall [%]')
-    # axes[1].set_title(f'Recall for Each Class\nMean Recall: {mean_recall*100:.1f}%')
-    # axes[1].grid(axis='x', linestyle='--', alpha=0.7)
-    # # Add mean values for each class to the recall panel
-    # for i, cls in enumerate(sorted_classes):
-    #     axes[1].text(sorted_recalls[i] + 0.01, i, f'{sorted_recalls[i]*100:.0f}', va='center', ha='left')
-
-    # # Plot F1 Score
-    # axes[2].barh([str(cls) for cls in sorted_classes], sorted_f1s, color='lightgreen')
-    # axes[2].set_xlabel('F1 Score [%]')
-    # axes[2].set_title(f'F1 Score for Each Class\nMean F1 Score: {mean_f1*100:.1f}')
-    # axes[2].grid(axis='x', linestyle='--', alpha=0.7)
-    # # Add mean values for each class to the F1 score panel
-    # for i, cls in enumerate(sorted_classes):
-    #     axes[2].text(sorted_f1s[i] + 0.01, i, f'{sorted_f1s[i]*100:.0f}%', va='center', ha='left')
-
-    # plt.suptitle('ResNet50: Precision, Recall, and F1 Scores by Class', fontsize=30)
-    # plt.tight_layout()
-    # plt.subplots_adjust(top=0.85)  # Adjust the top to make space for suptitle
-    # plt.show()
 
     print(F"[INFO] Finished evaluate.py")
 
-get_model_predictions(filename, bs, images_path, ground_truth_file_path, path)
+# Hard-coded variables
+MODEL_NAME = 'Plankton_imager_v01b' # Insert your model filename; see train.py
+BATCH_SIZE = 128
+REFERENCE_PATH = 'data/DETAILED_test.csv'
+TRAIN_DATASET = Path('data/DETAILED_merged')
+TEST_DATASET = Path('data/DETAILED_test')
+
+# Execute function
+evaluate_model(MODEL_NAME, BATCH_SIZE, TEST_DATASET, REFERENCE_PATH, TRAIN_DATASET)

@@ -6,14 +6,14 @@ from pathlib import Path
 # Custom imports
 from src.generate_report import get_pred_labels, clean_df
 
-def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAME, n_images=100):
+def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME, n_images=100):
     """
     Randomly samples n_images from each class in results_dir and organizes them into folders.
 
     Parameters:
     - results_dir: Path to the folder containing CSV files with classification results.
     - CRUISE_NAME: Name of the cruise (unused in this function but kept for compatibility).
-    - TRAIN_DATA_PATH: Path to training data (used to get pred_labels).
+    - TRAIN_DATASET: Path to training data (used to get pred_labels).
     - MODEL_FILENAME: Model filename (used to get pred_labels).
     - n_images: Number of images to sample from each class.
     - output_dir: Directory where the class folders will be created.
@@ -41,7 +41,7 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATA_PATH, MODEL_FILENAM
     print(f"[INFO] Sampling {n_images} images from each class.")
 
     # Get actual label names from the model
-    pred_labels = get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME)
+    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
 
     # Create output directory if it doesn't exist
     output_dir = f"data/{CRUISE_NAME}_sample"

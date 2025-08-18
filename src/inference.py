@@ -11,17 +11,7 @@ import time
 from datetime import timedelta
 import sys
 
-# UNUSED FUNCTION
-def merge_csv_files(folder_name, output_file, separator=','):
-    dataframe = pd.concat([pd.read_csv(f, sep=separator) for f in glob.glob(f"{folder_name}/*.csv")], ignore_index=True)
-    dataframe_tensor = torch.tensor(dataframe.iloc[:, 2:].to_numpy())
-    conf, pred_id = torch.max(dataframe_tensor, dim=1)
-    dataframe['conf'] = conf
-    dataframe['pred_id'] = pred_id
-    dataframe.to_csv(output_file, index=False, float_format='%.3f')
-    print(f"[INFO] All CSV files merged into {output_file}")
-
-def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untarred_dir, CRUISE_NAME, BATCH_SIZE):
+def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATASET, untarred_dir, CRUISE_NAME, BATCH_SIZE):
     start_time = time.time()
     np.random.seed(42)
 
@@ -53,7 +43,7 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
             Normalize.from_stats(*imagenet_stats)]
     )
 
-    dls = block.dataloaders(TRAIN_DATA_PATH, bs=BATCH_SIZE)
+    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE)
     learn = vision_learner(dls, resnet50, metrics=error_rate)
 
     # Check for multiple GPUs and use DataParallel if available
@@ -142,14 +132,5 @@ def conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATA_PATH, untar
     inference_time = time.time()
     elapsed_inference_time = timedelta(seconds=inference_time - start_time).total_seconds()
     print(f"[INFO] Inference completed in {elapsed_inference_time / 3600:.2f} hours.")
-
-    # Merging into single CSV will be phased out in future updates
-    # merge_csv_files(results_dir, results_dir / f"{CRUISE_NAME}_all_preds.csv")
-
-    # # For merging all possible CSV's into one large one
-    # # This one can cause large memory issues
-    # merge_time = time.time()
-    # elapsed_merge_time = timedelta(seconds=merge_time - inference_time).total_seconds()
-    # print(f"CSV merging completed in {elapsed_merge_time / 3600:.2f} hours.")
 
     return results_dir
