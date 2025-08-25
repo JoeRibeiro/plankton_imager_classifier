@@ -17,7 +17,7 @@ import polars as pl
 
 from memory_profiler import profile
 
-@profile
+# @profile
 def get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME):
     # Get label names
     # Quite convoluted, but fastest way to retrieve labels in a dynamic way
@@ -64,7 +64,8 @@ def get_geographic_data(image_path):
         exif_data = image.getexif()
         if exif_data:
             ifd = exif_data.get_ifd(0x8825) # Code for GPSInfo, see: www.media.mit.edu/pia/Research/deepview/exif.html
-
+            
+            # TODO" Check for (0,0) coordinates
             if not ifd:
                 print(f"[WARNING] '{image_path}' has no GPS information.")
                 return None
@@ -84,50 +85,43 @@ def get_geographic_data(image_path):
 
             return latitude, longitude
 
-@profile
-def clean_df(df_raw, pred_labels, class_id):
-    # TODO: Move single-use code outside this loop
-    print(f"[INFO] Started cleaning DataFrame")
-    # Evaluate number of predictions above 98% threshold
-    # threshold = 0.98
-    # b = df_raw.filter(pl.col("conf") > threshold)
-    # no_images = b.height
-    # perc_images = (no_images * 100 / df_raw.height)
-    #print(f"[INFO] {no_images:,} images (i.e., {float(f'{perc_images:.2f}')}% of predictions are above the threshold of {threshold * 100}%)")
+# @profile
+# def clean_df(df_raw, pred_labels, class_id):
+#     print(f"[INFO] Started cleaning DataFrame")
 
-    # Extract the date and the time using regex, and combine them into a datetime column
-    # Input looks like: "/2024-01-16/untarred_0000/Background.tif" or "/2024-01-16/untarred_0000/RawImages/pia7.2024-01-16.0000+N00000000.tif"
-    df_preprocess = df_raw.with_columns([
-        pl.col("id").str.extract(r"(\d{4}-\d{2}-\d{2})").alias("date"),  # Extract date
-        pl.col("id").str.extract(r"untarred_(\d{4})").alias("time")  # Extract time from 'untarred_{TIME}'. We use this to handle 'Background.tif' rows
-    ])
+#     # Extract the date and the time using regex, and combine them into a datetime column
+#     # Input looks like: "/2024-01-16/untarred_0000/Background.tif" or "/2024-01-16/untarred_0000/RawImages/pia7.2024-01-16.0000+N00000000.tif"
+#     # df_preprocess = df_raw.with_columns([
+#     #     pl.col("id").str.extract(r"(\d{4}-\d{2}-\d{2})").alias("date"),  # Extract date
+#     #     pl.col("id").str.extract(r"untarred_(\d{4})").alias("time")  # Extract time from 'untarred_{TIME}'. We use this to handle 'Background.tif' rows
+#     # ])
 
-    df_preprocess = df_preprocess.with_columns(
-        (pl.col("date") + " " + pl.col("time").str.slice(0, 2) + ":" + pl.col("time").str.slice(2, 4)). \
-        str.strptime(pl.Datetime, "%Y-%m-%d %H:%M"). \
-        alias("datetime")
-    )
+#     # df_preprocess = df_preprocess.with_columns(
+#     #     (pl.col("date") + " " + pl.col("time").str.slice(0, 2) + ":" + pl.col("time").str.slice(2, 4)). \
+#     #     str.strptime(pl.Datetime, "%Y-%m-%d %H:%M"). \
+#     #     alias("datetime")
+#     # )
 
-    # Create a new column 'pred_labels' by directly indexing 'pred_labels' with 'pred_id'
-    pred_labels_list = list(pred_labels)
-    pred_id_to_label_df = pl.DataFrame({
-        "pred_id": range(len(pred_labels_list)),
-        "pred_label": pred_labels_list
-    })
+#     # # Create a new column 'pred_labels' by directly indexing 'pred_labels' with 'pred_id'
+#     # pred_labels_list = list(pred_labels)
+#     # pred_id_to_label_df = pl.DataFrame({
+#     #     "pred_id": range(len(pred_labels_list)),
+#     #     "pred_label": pred_labels_list
+#     # })
     
-    # Create an additional column for the confidence for the predicted class
-    df_preprocess = df_preprocess.with_columns(pl.col(f'{class_id}').alias('pred_conf'))
+#     # # Create an additional column for the confidence for the predicted class
+#     # df_preprocess = df_preprocess.with_columns(pl.col(f'{class_id}').alias('pred_conf'))
 
-    # Join the original DataFrame with the pred_id_to_label DataFrame
-    # This approach is significantly faster than .apply() or .map_elements()
-    df_preprocess = df_preprocess.join(pred_id_to_label_df, on="pred_id", how="left")
+#     # # Join the original DataFrame with the pred_id_to_label DataFrame
+#     # # This approach is significantly faster than .apply() or .map_elements()
+#     # df_preprocess = df_preprocess.join(pred_id_to_label_df, on="pred_id", how="left")
 
-    # We keep the dataframe including 'Background.tif' for faster processing when creating the cruise path
-    # Filter out rows where 'id' contains 'Background.tif'
-    df_cleaned = df_preprocess.filter(~pl.col("id").str.contains("Background.tif"))
-    df_background = df_preprocess.filter(pl.col("id").str.contains("Background.tif")) # NOTE: pred_label will state 'artefacts'
+#     # We keep the dataframe including 'Background.tif' for faster processing when creating the cruise path
+#     # Filter out rows where 'id' contains 'Background.tif'
+#     df_cleaned = df_raw.filter(~pl.col("id").str.contains("Background.tif"))
+#     df_background = df_raw.filter(pl.col("id").str.contains("Background.tif")) # NOTE: pred_label will state 'artefacts'
 
-    return df_cleaned, df_background
+#     return df_cleaned, df_background
 
 # General data description
 @profile
@@ -144,24 +138,15 @@ def compute_class_statistics(df, total_images, DENSITY_CONSTANT):
             continue # Skip classes with no images
         percentage_total = (total_class_images / total_images) * 100
 
-        # Calculate density statistics
-        pred_id_counts = (
-            class_df
-            .sort(by='datetime')
-            .group_by_dynamic("datetime", every="10m")
-            .agg(pl.len().alias("pred_id_count"))
-            .with_columns((pl.col("pred_id_count") / DENSITY_CONSTANT).alias("density"))
-        )
-
         # Collect per-class statistics
         stats_dict = ({
             'ID': class_id,
             'Class': class_df["pred_label"][0],  # Return as single string
             '# of Images': total_class_images,
             '% of Images': f"{percentage_total:.2f}",
-            'Min Density': f"{pred_id_counts['density'].min():.2f}",
-            'Mean Density': f"{pred_id_counts['density'].mean():.2f}",
-            'Max Density': f"{pred_id_counts['density'].max():.2f}",
+            'Min Density': f"{class_df['density'].min():.2f}",
+            'Mean Density': f"{class_df['density'].mean():.2f}",
+            'Max Density': f"{class_df['density'].max():.2f}",
             'Min Confidence': f"{class_df['pred_conf'].min():.2f}",
             'Mean Confidence': f"{class_df['pred_conf'].mean():.2f}",
             'Max Confidence': f"{class_df['pred_conf'].max():.2f}"
@@ -186,6 +171,7 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
     # Group by 10-minute intervals and aggregate
     grouped_df = (
         class_df
+        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
         .group_by_dynamic("datetime", every="10m")
         .agg([
             pl.col("id").first(),
@@ -194,7 +180,8 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
             pl.col("pred_conf").mean().alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
-            (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
+            pl.col("density").mean()
+            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
         ])
     )
 
@@ -231,36 +218,169 @@ def preprocess_data(df, class_id, DENSITY_CONSTANT):
 
 # Compute entire cruise-path
 # TODO: Make figure of the cruise path
-@profile
-def create_cruise_path(df_background):
+# @profile
+def create_cruise_path(lazy_df, CRUISE_NAME):
     print("[INFO] Creating GeoDataFrame of cruise path")
 
-    # Create a new column for the latitude-longitude EXIF metadata
-    df_background = df_background.with_columns(
-        pl.col("id")
-        .map_elements(
-            lambda x: dict(zip(("lat", "lon"), get_geographic_data(x))),
-            return_dtype=pl.Struct([pl.Field("lat", pl.Float64), pl.Field("lon", pl.Float64)]) # Specify dtype to silence Polars warning
-        )
-        .alias("coordinates")
-    ).unnest("coordinates")  # Unnest into lat-lon columns; We need separate columns for GeoPandas to get geometry
+    # Group by datetime and get first lat and lon for each group
+    measurement_locations = (
+        lazy_df
+        .group_by("datetime")
+        .agg([
+            pl.col("lat").first().alias("lat"),
+            pl.col("lon").first().alias("lon")
+        ])
+    ).collect().to_pandas().set_index('datetime')
 
     # Create a GeoDataFrame from the adjusted data
-    df_background_pd = df_background.to_pandas().set_index('datetime')
-    geometry = gpd.points_from_xy(df_background['lon'], df_background['lat'], crs=4326)
-    gdf = gpd.GeoDataFrame(df_background_pd, geometry=geometry)
+    geometry = gpd.points_from_xy(measurement_locations['lon'], measurement_locations['lat'], crs=4326)
+    gdf = gpd.GeoDataFrame(measurement_locations, geometry=geometry)
 
     # Sort the GeoDataFrame by the index (datetime) to ensure the points are in chronological order
     gdf.sort_index(inplace=True)
+    gdf.index = pd.to_datetime(gdf.index)
+
+    # Save measurement locations as GeoPackage
+    output_path = Path(f"data/{CRUISE_NAME}_results/{CRUISE_NAME}_measurement_locations.gpkg")
+    gdf.to_file(output_path, driver='GPKG')
 
     # Create a linestring from the sorted points
     cruise_path = LineString(gdf['geometry'].tolist())
 
-    # Create a GeoDataFrame for the cruise path
-    cruise_path_gdf = gpd.GeoDataFrame(geometry=[cruise_path], crs="EPSG:4326")
-    cruise_path_gdf = cruise_path_gdf.to_crs(epsg=4258)
+    # Calculate time differences between consecutive points
+    datetimes = gdf.index.to_series()
+    time_diffs = (datetimes - datetimes.shift(1)).dt.total_seconds() / 60
+    time_diffs.iloc[0] = 0  # First point has no previous point to compare to
 
-    return cruise_path_gdf
+    # Identify gaps > 10 minutes
+    gap_locations = time_diffs > 10
+
+    # Calculate segment IDs by cumulative sum of gap locations
+    segment_ids = gap_locations.cumsum()
+
+    # Add segment IDs to the GeoDataFrame
+    gdf['segment_id'] = segment_ids
+
+    # Group by segment_id and create linestrings for groups with at least 2 points
+    segments = []
+    for segment_id, group in gdf.groupby('segment_id'):
+        if len(group) >= 2:
+            segments.append(LineString(group['geometry'].tolist()))
+
+    # Create a GeoDataFrame for the cruise path segments
+    cruise_path_gdf = gpd.GeoDataFrame(geometry=segments, crs="EPSG:4326")
+    
+    # Reproject to EPSG:3035
+    cruise_path_gdf = cruise_path_gdf.to_crs(epsg=3035) # CRS with meters
+
+    cruise_path_output_path = Path(f"data/{CRUISE_NAME}_results/{CRUISE_NAME}_cruise_path.gpkg")
+    cruise_path_gdf.to_file(cruise_path_output_path, driver='GPKG')
+
+    # Other statics used for pretty-print and general information
+    cruise_path_gdf['length_km'] = cruise_path_gdf['geometry'].to_crs(epsg=3035).length / 1000
+    total_length_km = cruise_path_gdf['length_km'].sum()
+    print(f"[INFO] Total length of all linestring segments: {total_length_km:.2f} km")
+
+    # Calculate total hours of footage
+    number_of_samples = len(gdf)
+    total_hours = (number_of_samples * 10) / 60  # 10 minutes per sample, divided by 60 to get hours
+    print(f"[INFO] Total hours of footage: {total_hours:.2f}")
+
+    # Get min and max dates
+    min_date = gdf.index.min()
+    max_date = gdf.index.max()
+    print(f"[INFO] Minimum date: {min_date}")
+    print(f"[INFO] Maximum date: {max_date}")
+
+    cruise_path_gdf = cruise_path_gdf.to_crs(epsg=4258) # Use CRS with degrees for plotting purposes
+
+    return cruise_path_gdf, total_length_km, total_hours, min_date, max_date
+
+# Plot cruise path
+def plot_cruise_path(cruise_path, cruise_fig_path, CRUISE_NAME):
+    # Load the shapefile for the map background
+    coastlines = gpd.read_file("data/eea_v_3035_100_k_coastline-poly_1995-2017_p_v03_r00")
+    eez = gpd.read_file("data/EEZ_land_union_v4_202410")
+
+    # Convert CRS from EPSG:4326 to EPSG:4258
+    cruise_path = cruise_path.to_crs(epsg=4258)
+    coastlines = coastlines.to_crs(epsg=4258)
+    eez = eez.to_crs(epsg=4258)
+
+    # Plot the map
+    fig, ax = plt.subplots(figsize=(6, 8))
+
+    # Plot EEZ data
+    eez.plot(ax=ax, facecolor='none', edgecolor='gray',  linewidth=0.3, zorder=2)
+
+    # Plot coastlines data with no fill and lowest zorder
+    coastlines.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5,zorder=0)
+
+    # Plot the cruise path with a lower zorder to ensure dots are on top
+    cruise_path.plot(ax=ax, color='black', linewidth=2, label='Cruise Path', zorder=1)
+
+    # Set plot extent
+    minx, miny, maxx, maxy = cruise_path.total_bounds
+    padding_degrees = 0.2  # In degrees
+    minx_padded = minx - padding_degrees
+    maxx_padded = maxx + padding_degrees
+    miny_padded = miny - padding_degrees
+    maxy_padded = maxy + padding_degrees
+
+    ax.set_xlim(minx_padded, maxx_padded)
+    ax.set_ylim(miny_padded, maxy_padded)
+
+    # Format axes
+    def format_lat(x, pos):
+        return f"{x:.1f}°{'N' if x >= 0 else 'S'}"
+    def format_lon(x, pos):
+        return f"{x:.1f}°{'E' if x >= 0 else 'W'}"
+    ax.xaxis.set_major_formatter(FuncFormatter(format_lon))
+    ax.yaxis.set_major_formatter(FuncFormatter(format_lat))
+
+    # Add grid lines
+    ax.grid(True, which='both', linestyle='--', linewidth=0.5, zorder=1.5)
+    x_extent = maxx_padded - minx_padded # Calculate east-west extent
+    lon_spacing = 2.0 if x_extent > 5 else 0.5 # Determine longitude grid spacing based on extent
+    ax.xaxis.set_major_locator(MultipleLocator(base=lon_spacing))
+    ax.yaxis.set_major_locator(MultipleLocator(base=lon_spacing))
+
+    # Add text in the top-left corner 
+    text_content = f"Cruise: {CRUISE_NAME}"
+    ax.text(0.02, 0.98, text_content, transform=ax.transAxes,
+            fontsize=8, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+
+    plt.tight_layout()
+    plt.savefig(cruise_fig_path)
+    print("[INFO] Finished cruise-path map")
+    return fig
+
+# Number of samples
+def plot_image_count(stats_df, output_path):
+    # Create a new column with processed class names
+    stats_df['Processed_Class'] = stats_df['Class'].apply(lambda x: x.replace('_', ' ').replace('-', ' '))
+
+    # Sort the DataFrame by the processed class names
+    sorted_stats_df = stats_df.sort_values(by='Processed_Class', ascending=False)
+
+    # Extract the sorted processed class names and counts
+    sorted_processed_classes = sorted_stats_df['Processed_Class'].tolist()
+    sorted_num_images = sorted_stats_df['# of Images'].tolist()
+
+    # Create the plot
+    plt.figure(figsize=(6, 8))
+    plt.barh(sorted_processed_classes, sorted_num_images, color='skyblue')
+    plt.xscale('log')
+    plt.xlim(1, None)  # Start x-axis at 1 to avoid log(0)
+    plt.xlabel('Number of Images')
+    plt.ylabel('')
+    # plt.title('Number of Images per Class')
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(output_path)
+    # plt.show()
+
 
 # Confidence graph
 def plot_confidence(class_df):
@@ -268,17 +388,32 @@ def plot_confidence(class_df):
     class_df = class_df.to_pandas() # Convert Polars to Pandas
 
     # Calculate mean confidence for each of the 49 columns
-    mean_confidences = class_df.iloc[:, 2:51].mean()
+    # Select all columns ending with '_conf' except 'pred_conf' and its duplicated version
+    all_columns = class_df.columns.tolist()
+    conf_columns = [col for col in all_columns if col.endswith('_conf') and col not in ['pred_conf', 'pred_conf_duplicated_0']]
+    df_conf = class_df[conf_columns]
+
+    mean_confidences = df_conf.mean()
 
     # Select five classes with the highest mean confidence, excluding the pred_id column
-    pred_id = class_df['pred_id'].iloc[0]  # Assuming all pred_ids are the same as per your filter
-    top_five_classes = mean_confidences.drop(str(pred_id)).nlargest(5).index
+    pred_label = class_df['pred_label'].iloc[0]  # Assuming all pred_ids are the same as per your filter
+    top_five_classes = mean_confidences.drop(f"{pred_label}_conf").nlargest(5).index
 
     # Create a horizontal violin plot
     fig, ax = plt.subplots(figsize=(6, 5))
-    data_to_plot = [class_df[str(idx)] for idx in top_five_classes] + [class_df['pred_conf']]
-    labels = [pred_labels[int(idx)].replace('_', '\n') for idx in top_five_classes] + [pred_labels[pred_id].replace('_', '\n')]
 
+    # Extract relevant data from the predicted class and top-5 related ones
+    data_to_plot = [class_df[idx] for idx in top_five_classes] + [class_df['pred_conf']]
+
+    # Pretty-print the labels
+    labels_top_five = []
+    for class_conf in top_five_classes:
+        base_name = class_conf.replace('_conf', '')
+        labels_top_five.append(re.sub(r'[_\-]', '\n', base_name))
+
+    pred_conf_label = re.sub(r'[_\-]', '\n', pred_label)
+    full_labels = labels_top_five + [pred_conf_label] 
+    
     # Create a list of colors, with a different color for the actual target
     colors = ['#004A6D'] * len(top_five_classes) + ['#FF5733']  # Using a different color for the actual target
 
@@ -290,14 +425,12 @@ def plot_confidence(class_df):
         pc.set_facecolor(color)
         pc.set_edgecolor('black')
 
-    plt.yticks(range(1, len(labels) + 1), labels)
+    plt.yticks(range(1, len(full_labels) + 1), full_labels)
     plt.title(f'{class_df['pred_label'].iloc[0]} vs top-5 related classes', fontsize=11)
     plt.xlabel('Confidence [-]')
     ax.grid(which='major', axis='y', linestyle='--', linewidth=0.5)
 
     plt.tight_layout()
-    #plt.show()
-    #print("[INFO] Finished confidence plot")
 
     return fig
 
@@ -306,16 +439,18 @@ def plot_density_graph(class_df, class_id, DENSITY_CONSTANT):
     print(f"[INFO] Started line graph for {class_df['pred_label'].first()}")
     grouped_df = (
         class_df
+        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
         .sort(by='datetime')
         .group_by_dynamic("datetime", every="10m")
         .agg([
             pl.col("id").first(),
             pl.col("date").first(),
             pl.col("time").first(),
-            pl.col("pred_conf").mean().alias("pred_conf"),
+            pl.col("pred_conf").mean(),#.alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
-            (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
+            pl.col("density").mean()
+            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
         ])
     )
     # Filter out None values from unique_dates
@@ -388,28 +523,22 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
     print(f"[INFO] Started density map for class #{class_id}")
     grouped_df = (
         class_df
+        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
         .sort(by='datetime')
         .group_by_dynamic("datetime", every="10m")
         .agg([
             pl.col("id").first(),
             pl.col("date").first(),
             pl.col("time").first(),
-            pl.col("pred_conf").mean().alias("pred_conf"),
+            pl.col("pred_conf").mean(),#.alias("pred_conf"),
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
-            (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
+            pl.col("density").mean(),
+            pl.col("lat").first(),
+            pl.col("lon").first()
+            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
         ])
     )
-
-    # Create a new column for the latitude-longitude EXIF metadata
-    grouped_df = grouped_df.with_columns(
-        pl.col("id")
-        .map_elements(
-            lambda x: dict(zip(("lat", "lon"), get_geographic_data(x))),
-            return_dtype=pl.Struct([pl.Field("lat", pl.Float64), pl.Field("lon", pl.Float64)]) # Specify dtype to silence Polars warning
-        )
-        .alias("coordinates")
-    ).unnest("coordinates")  # Unnest into lat-lon columns; We need separate columns for GeoPandas to get geometry
 
     # Convert the class-specific DataFrame to a GeoDataFrame
     gdf = (
@@ -420,31 +549,29 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
     )
 
     # Load the shapefile for the map background
-    world = gpd.read_file(OSPAR)
+    coastlines = gpd.read_file("data/eea_v_3035_100_k_coastline-poly_1995-2017_p_v03_r00")
+    eez = gpd.read_file("data/EEZ_land_union_v4_202410")
 
     # Convert CRS from EPSG:4326 to EPSG:4258
-    world = world.to_crs(epsg=4258)
+    coastlines = coastlines.to_crs(epsg=4258)
+    eez = eez.to_crs(epsg=4258)
     gdf = gdf.to_crs(epsg=4258)
 
     # Plot the map
     fig, ax = plt.subplots(figsize=(6, 8))
 
-    # Define colors for each category
-    category_colors = {
-        'Coastal': '#BFEFFF',
-        'Shelf': '#9AC0CD',
-        'River plumes': '#D2B48C'
-    }
+    # Plot EEZ data
+    eez.plot(ax=ax, facecolor='none', edgecolor='gray',  linewidth=0.3, zorder=2)
 
-    # Plot each OSPAR category with its respective color
-    for category, color in category_colors.items():
-        world[world['Category'] == category].plot(ax=ax, color=color, edgecolor='black')
+    # Plot coastlines data with no fill and lowest zorder
+    coastlines.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5,zorder=0)
 
     # Plot the cruise path with a lower zorder to ensure dots are on top
     cruise_path.plot(ax=ax, color='black', linewidth=2, label='Cruise Path', zorder=1)
 
     # 1. Normalize the density values for color mapping
-    norm = plt.Normalize(gdf['density'].min(), gdf['density'].max())
+    min_density = 0 # Hard-code the minimum boundary to 0 N/L
+    norm = plt.Normalize(min_density, gdf['density'].max())
 
     # 2. Create colormap - let's use a sequential color scheme from light to dark
     cmap = plt.colormaps['YlOrRd']  # Yellow to Orange to Red
@@ -452,8 +579,8 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
     # 3. Scale marker sizes based on density (using square root to make sizes perceptually balanced)
     min_size = 20
     max_size = 140
-    density_range = gdf['density'].max() - gdf['density'].min()
-    gdf['marker_size'] = min_size + (max_size - min_size) * (gdf['density'] - gdf['density'].min()) / density_range
+    density_range = gdf['density'].max() - min_density
+    gdf['marker_size'] = min_size + (max_size - min_size) * (gdf['density'] - min_density) / density_range
 
     # Handle special case where density_range is 0 (all densities equal)
     if density_range == 0:
@@ -478,10 +605,12 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
 
     # Set plot extent
     minx, miny, maxx, maxy = cruise_path.total_bounds
-    minx_padded = minx - 0.2 # Add 0.2 degree padding on each side
-    maxx_padded = maxx + 0.2
-    miny_padded = miny - 0.2
-    maxy_padded = maxy + 0.2
+    padding_degrees = 0.2  # In degrees
+    minx_padded = minx - padding_degrees
+    maxx_padded = maxx + padding_degrees
+    miny_padded = miny - padding_degrees
+    maxy_padded = maxy + padding_degrees
+
     ax.set_xlim(minx_padded, maxx_padded)
     ax.set_ylim(miny_padded, maxy_padded)
 
@@ -495,8 +624,10 @@ def plot_class_density_map(class_df, class_id, cruise_path, OSPAR, CRUISE_NAME, 
 
     # Add grid lines
     ax.grid(True, which='both', linestyle='--', linewidth=0.5, zorder=1.5)
-    ax.xaxis.set_major_locator(MultipleLocator(base=0.5))
-    ax.yaxis.set_major_locator(MultipleLocator(base=0.5))
+    x_extent = maxx_padded - minx_padded # Calculate east-west extent
+    lon_spacing = 2.0 if x_extent > 5 else 0.5 # Determine longitude grid spacing based on extent
+    ax.xaxis.set_major_locator(MultipleLocator(base=lon_spacing))
+    ax.yaxis.set_major_locator(MultipleLocator(base=lon_spacing))
 
     # Add text in the top-left corner (as before)
     pred_label = pred_labels[class_id]
@@ -519,6 +650,9 @@ def plot_random_images(class_df, num_images=80):
         # But this should not occur, unless an extremely small dataset is used
         print(f"[WARNING] Only {class_df.height} images found for class {class_df['pred_label'].first()}. {num_images} images required")
         sampled_df = class_df.sample(n=class_df.height, seed=42) # No sample, just take all available images (<80img)
+
+    # Sort the sampled images by confidence in descending order
+    sampled_df = sampled_df.sort("pred_conf", descending=True)
 
     # Extract the file paths from the sampled DataFrame
     sampled_paths = sampled_df['id'].to_list()
@@ -547,12 +681,10 @@ def plot_random_images(class_df, num_images=80):
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
-    #plt.show()
-    #print("[INFO] Finished plotting random images")
     return fig
 
 # Automated report
-@profile
+# @profile
 def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME):
     print(f"[INFO] Reading DataFrames in folder: {results_dir}")
 
@@ -588,12 +720,8 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     os.makedirs(temp_dir, exist_ok=True)
 
     # Get cruise path information as geodata
-    # As Background.tif is generated for each 10-minute bin, this allows for easier iteration
-    df_background = lazy_df.filter(pl.col("id").str.contains("Background.tif")).collect()
-    _, df_background = clean_df(df_background, pred_labels, class_id=47) # Clean DataFrame
-    cruise_path = create_cruise_path(df_background) # GeoDataFrame
+    cruise_path, total_length_km, total_hours, start_date, end_date = create_cruise_path(lazy_df, CRUISE_NAME) # GeoDataFrame
     minx, miny, maxx, maxy = cruise_path.total_bounds # Used for general text description
-    start_date, end_date = df_background['datetime'].min(), df_background['datetime'].max()
 
     def longitude_direction(lon):
         # Determine the direction for longitude
@@ -608,23 +736,23 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         # Get and clean subset for current class
         subset_df = lazy_df.filter(pl.col("pred_id") == class_id).collect()
         print(f"[INFO] Processing {subset_df.height:,} rows for class {class_id}")
-        df_cleaned, _ = clean_df(subset_df, pred_labels, class_id=class_id)
+        # df_cleaned, _ = clean_df(subset_df, pred_labels, class_id=class_id)
 
         # 1. Compute and store statistics (number of predictions, density, model confidence)
-        stats_dict = compute_class_statistics(df_cleaned, total_rows, DENSITY_CONSTANT)
+        stats_dict = compute_class_statistics(subset_df, total_rows, DENSITY_CONSTANT)
         class_stats.append(stats_dict) # Single row per class
 
         # 2. Generate figure on model confidence compared to top-5 related classes
-        confidence_fig = plot_confidence(df_cleaned)
+        confidence_fig = plot_confidence(subset_df)
 
         # 3. Generate figure on density statistics over time
-        density_fig = plot_density_graph(df_cleaned, class_id, DENSITY_CONSTANT)
+        density_fig = plot_density_graph(subset_df, class_id, DENSITY_CONSTANT)
 
         # 4. Generate map of density on a spatial scale
-        map_fig = plot_class_density_map(df_cleaned, class_id, cruise_path, OSPAR, CRUISE_NAME, DENSITY_CONSTANT)
+        map_fig = plot_class_density_map(subset_df, class_id, cruise_path, OSPAR, CRUISE_NAME, DENSITY_CONSTANT)
 
         # 5. Generate figure of randomly selected images to illustrate predicted targets
-        img_fig = plot_random_images(df_cleaned, num_images=80)
+        img_fig = plot_random_images(subset_df, num_images=80)
 
         if any(fig is None for fig in [density_fig, map_fig, confidence_fig]):
             print(f"[WARNING] Skipping class {class_id} due to missing figures")
@@ -645,16 +773,9 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
 
         # Store all data needed for document generation
         class_data[class_id] = {
-            'pred_label': df_cleaned['pred_label'].first(),
+            'pred_label': subset_df['pred_label'].first(),
             'figure_paths': figure_paths
         }
-
-        # # Trigger garbage collection and get the number of uncollectable objects
-        # gc.collect()
-        # print(f"[INFO] Number of uncollectable objects: {len(gc.garbage)}")
-
-        if class_id >= 5:
-            break
 
     # Create Word document
     document = Document()
@@ -663,7 +784,7 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     document.add_heading('Introduction', level=1)
     document.add_paragraph(
         "This automated report provides a detailed overview of Plankton Imager data collected during the " +
-        f"{CRUISE_NAME} cruise between {str(start_date)} to {str(end_date)}. In total, {total_rows:,} images were collected in the region " +
+        f"{CRUISE_NAME} cruise between {str(start_date)} to {str(end_date)}, with a total of {total_hours:.2f} hours of footage recorded. In total, {total_rows:,} images were collected over a transect of {total_length_km:.2f} kilometers in the region of " +
         f"from approximately {abs(minx):.2f}°{longitude_direction(minx)} to {abs(maxx):.2f}°{longitude_direction(maxx)} longitude and " +
         f"{miny:.2f}°N to {maxy:.2f}°N latitude.\n\n" 
 
@@ -673,10 +794,17 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         f"A first attempt at deriving an index of patchiness is provided as well, through dividing the number of images by {DENSITY_CONSTANT}, corresponding to the volume of water (in L) flowing through " +
         "the Plankton Imager in 10 minutes."
     )
+
+    # Plot map of the cruise-path
+    cruise_fig_path = os.path.join(temp_dir, f'cruise_path.png')
+    cruise_fig = plot_cruise_path(cruise_path, cruise_fig_path, CRUISE_NAME)
+    document.add_picture(cruise_fig_path, width=Inches(6))
+    document.add_paragraph(f"Map showing the path taken during the {CRUISE_NAME} survey.")
+
     document.add_heading('Methodology', level=1)
     document.add_paragraph(
         "The analysis was conducted using the ResNet50 developed in Van Walraven et al. (in prep) which predicts 49 different plankton and non-plankton classes. Detailed information " + 
-        "on the code, weights, and datasets can be found at: https://git.wur.nl/marine-vision-and-robotics/mons. " +
+        "on the code, weights, and datasets can be found at: https://github.com/geoJoost/plankton_imager_classifier. " +
         "The density calculations are created by dividing the estimated volume of water that passes through the flow cell 34 L/min, for a total of 340 L per 10 minutes. " + 
         "Therefore, the number of predictions can be binned per 10 minutes and divided to get the density per L, which we report as N/L. "
         "Afterwards, we process this dataset to compute descriptive statistics on the entire dataset, and class-specific derived information. Density graphs and maps are created to illustrate the "+
@@ -698,10 +826,10 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     )
 
     # Add a table for density statistics
-    document.add_paragraph("General statistics on the predictions made using the model, such as the number of images predicted as each class, the density (N/L), and the confidence for each class.")
+    document.add_paragraph("General statistics on the predictions made using the model, such as the number of images predicted for each class, density (N/L), and the confidence values.")
     
     # Aggregate statistics into single table
-    stats_df = pd.DataFrame(class_stats).sort_values(by='# of Images', ascending=False) # 49 rows
+    stats_df = pd.DataFrame(class_stats).sort_values(by='Class', ascending=True) # 49 rows
     stats_df['Class'] = stats_df['Class'].str.replace('_', ' ').str.replace('-', ' ', regex=False) # Use this to make the column smaller
 
     # Create a table with 5 columns
@@ -733,21 +861,27 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         # Add Confidence statistics as multiple lines in the Confidence column
         confidence_text = f"Min: {row['Min Confidence']}\nMean: {row['Mean Confidence']}\nMax: {row['Max Confidence']}"
         cells[4].text = confidence_text
-        
+    
+    # Plot bar-chart of the image counts
+    count_path = os.path.join(temp_dir, f'count_graph.png')
+    plot_image_count(stats_df, count_path)
+    document.add_picture(count_path, width=Inches(6))
+    document.add_paragraph(f"Graph showing the image counts of classes predicted during the {CRUISE_NAME} survey.")
+
     # Add page break before class-specific sections
     document.add_page_break()
 
-    # Sort classes by number of images (descending) to match table order
-    # First we need to map class_id to image count
-    class_image_counts = {item['ID']: item['# of Images'] for item in class_stats}
-    sorted_classes = sorted(
-        class_data.keys(),
-        key=lambda x: class_image_counts.get(x, 0),
-        reverse=True
-    )
+    # # Sort classes by number of images (descending) to match table order
+    # # First we need to map class_id to image count
+    # class_image_counts = {item['ID']: item['# of Images'] for item in class_stats}
+    # sorted_classes = sorted(
+    #     class_data.keys(),
+    #     key=lambda x: class_image_counts.get(x, 0),
+    #     reverse=True
+    # )
 
     # Add per-class sections
-    for class_id in sorted_classes:
+    for class_id in stats_df['ID']:
         class_info = class_data[class_id]
         pred_label = class_info['pred_label']
         report_df = stats_df[stats_df['ID'] == class_id] # Use the generalized table to print statistics again

@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import argparse
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # For MAC-OS users
 
 # Custom modules
 from src.untar import extract_tars
@@ -93,14 +94,9 @@ if __name__ == "__main__":
     # Step 1: Unpack the tarred data
     untarred_dir = extract_tars(SOURCE_BASE_DIR, max_jobs)
 
-    # Step 2: Remove corrupted .tif files
-    # No return as modifications are made on the untarred dirs
-    # TODO: Implement this within inference code to save on processing time
-    # remove_corrupted_files(untarred_dir, CRUISE_NAME, max_jobs)
-
     # Step 3: Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)
-    results_dir = conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATASET, untarred_dir, CRUISE_NAME, BATCH_SIZE)
+    results_dir, processed_dir = conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATASET, untarred_dir, CRUISE_NAME, BATCH_SIZE, DENSITY_CONSTANT)
 
     # Step 4: Randomly select n samples of each predicted class for validation and future training iterations
     get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, model_weights, n_images=100)

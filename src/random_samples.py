@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 # Custom imports
-from src.generate_report import get_pred_labels, clean_df
+from src.generate_report import get_pred_labels
 
 def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME, n_images=100):
     """
@@ -23,6 +23,9 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
     # First create glob pattern to find available .csv files
     csv_files = list(Path(results_dir).glob("*.csv"))
 
+    # Get actual label names from the model
+    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
+
     if not csv_files:
         print(f'[DEBUG] No CSV files found in {results_dir}')
         raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
@@ -36,12 +39,9 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         print("[INFO] No 'label' column found, continuing with 'pred_id'")
 
     total_rows = lazy_df.select(pl.len()).collect().item()
-    total_classes = lazy_df.select(pl.col("pred_id").unique()).collect().to_series().to_list()
+    total_classes = list(range(0, len(pred_labels))) # Get list of one-hot encoded IDs
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
     print(f"[INFO] Sampling {n_images} images from each class.")
-
-    # Get actual label names from the model
-    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
 
     # Create output directory if it doesn't exist
     output_dir = f"data/{CRUISE_NAME}_sample"
@@ -83,8 +83,8 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
 
         # We also save the subset_df for cross-referencing and additional metadata
         excel_path = os.path.join(class_dir, f"{pred_label}_sampled.xlsx")
-        cleaned_df, _ = clean_df(sampled_df, pred_labels, class_id) # Add proper datetime column to the document 
-        cleaned_df.write_excel(excel_path, autofit=True) # Excel instead of CSV for easier use
+        # cleaned_df, _ = clean_df(sampled_df, pred_labels, class_id) # Add proper datetime column to the document 
+        # cleaned_df.write_excel(excel_path, autofit=True) # Excel instead of CSV for easier use
         
         # Copy files
         filepaths = sampled_df['id'].to_list()

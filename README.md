@@ -9,8 +9,11 @@
 ## Getting Started
 ### Data set-up
 1. Download model weights from PLACEHOLDER. Two options are available, the `ResNet50-detailed` being more extensive with 49 different possible classifications, and the `OSPAR` model predicting XX classes. Store these into `/models/`
-2. For creating a final report, download the OSPAR data from [[`their website`]](https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/) and store in `/data/`
-3. Store your raw, unaltered Pi10-data into a preferable location. We recommend storing it in `/data/`, but can be stored in any accessible location using the argument `--source_dir`
+2. Store your raw, unaltered Pi10-data into a preferable location. We recommend storing it in `/data/`, but can be stored in any accessible location using the argument `--source_dir`
+3. For map creation, download the "EEA coastline for analysis" from the [European Environment Agency](https://www.eea.europa.eu/en/datahub/datahubitem-view/af40333f-9e94-4926-a4f0-0a787f1d2b8f). Store into `/data/`
+4. For map creation, download the "Marine and land zones: the union of world country boundaries and EEZ's (version 4)" from [Marineregions.org](https://www.marineregions.org/downloads.php#unioneezcountry). Store into `/data/`
+
+
 
 ### Anaconda set-up
 ```
@@ -115,6 +118,6 @@ To give a rough estimate on the total processing time required, below we share r
 3. Implement OSPAR models
 4. Remove FastAI implementation
 
+
 ## Known errors
-1. If you get the following error message: `ModuleNotFoundError: No module named 'pyarrow'`, then use `pip install pyarrow` in your environment.
-2. If the batch fails due to corrupted files, activate the function `remove_corrupted_files()` in `main.py`. This will significantly increase the processing time as it runs over all files. Future implementations will integrate this function within the try-except in `inference.py`.
+1. Error in `learn.load(MODEL_FILENAME, weights_only=False)` can be caused in older PyTorch versions. In this case, simply remove the `weights_only` argument.

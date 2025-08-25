@@ -8,6 +8,7 @@ from PIL import Image
 from fastai.vision.all import *
 from fastai.interpret import ClassificationInterpretation
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+import re
 
 """ Functions used in training """
 def analyze_tif_files(main_directory):

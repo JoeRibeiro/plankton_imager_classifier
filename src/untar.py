@@ -2,6 +2,7 @@ import os
 import tarfile
 import time
 from multiprocessing import Pool
+import shutil
 
 def process_tar_file(args):
     """Process a single tar file in a worker process"""
@@ -17,9 +18,10 @@ def process_tar_file(args):
         os.makedirs(target_dir, exist_ok=True)
 
         # Extract the contents
+        print(f"[INFO] Extracting files from {tar_file_relative}")
         with tarfile.open(tar_file, 'r') as tar:
             tar.extractall(target_dir)
-
+            
         return (True, tar_file, None)
 
     except Exception as e:
@@ -73,10 +75,6 @@ def check_files_extracted(source_dir, target_base_dir):
             print(f"[INFO] Target directory is empty: {target_dir}")
             all_present = False
             continue
-
-        # Optional: For a more thorough check, you could compare file contents
-        # But for simplicity, we'll just check if the directory exists and isn't empty
-        # This is much faster than comparing contents and sufficient for most cases
 
     return all_present
 
