@@ -9,6 +9,12 @@ from fastai.vision.all import *
 from fastai.interpret import ClassificationInterpretation
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 import re
+import pandas as pd
+import os
+import re
+
+# Custom modules
+from src.generate_report import get_geographic_data
 
 """ Functions used in training """
 def analyze_tif_files(main_directory):
@@ -364,3 +370,163 @@ def plot_classification_metrics(images_root, merged_df, dpi=300):
     print(f"[INFO] Saved classification metrics plot to {output_path}")
 
 """ Functions used in inference pipeline """
+def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
+    """
+    Generate a summary dataframe with aggregated statistics from the detailed predictions.
+
+    Args:
+        df_raw: DataFrame containing detailed prediction results
+        timestamp_path: Path to directory containing additional files (HitsMisses.txt)
+        DENSITY_CONSTANT: Constant used for density calculations
+
+    Returns:
+        tuple: (summary DataFrame, column order list)
+    """
+    filtered_df = df_raw[~df_raw['id'].astype(str).str.contains("Background.tif")].copy()
+    metadata_cols = ['cruise_name', 'date', 'time', 'datetime', 'instrument_code']
+    conf_columns = [col for col in df_raw.columns if col.endswith('_conf')]
+    numeric_cols = ['pred_id', 'pred_conf']
+    grouping_col = 'pred_label'
+    metadata = filtered_df.iloc[0][metadata_cols].to_dict() if not filtered_df.empty else {}
+    all_categories = filtered_df[grouping_col].unique().tolist() if not filtered_df.empty else []
+
+    if not filtered_df.empty:
+        grouped = filtered_df.groupby(grouping_col).agg({
+            **{col: 'mean' for col in conf_columns + numeric_cols},
+            grouping_col: 'count'
+        }).rename(columns={grouping_col: 'total_counts'})
+
+        summary_df = (
+            pd.DataFrame({grouping_col: all_categories})
+            .merge(grouped, on=grouping_col, how='left')
+            .fillna(0)
+        )
+
+        for col in metadata_cols:
+            summary_df[col] = metadata.get(col, None)
+
+        hits_misses_path = os.path.join(timestamp_path, "HitsMisses.txt")
+        if os.path.exists(hits_misses_path):
+            with open(hits_misses_path) as f:
+                lines = f.read().strip().split("\n")
+                hits, misses = [], []
+                for line in lines:
+                    parts = line.split(',')
+                    hit, miss = map(int, parts)
+                    hits.append(hit), misses.append(miss)
+
+                if hits and misses:
+                    total_hits = sum(hits)
+                    total_misses = sum(misses)
+                    summary_df['subsample_factor'] = total_hits / (total_hits + total_misses) if (total_hits + total_misses) > 0 else 0
+                    print(f"[INFO] Hits: {total_hits:,} | Misses: {total_misses:,}")
+                    summary_df['density'] = (summary_df['total_counts'] / summary_df['subsample_factor']) / DENSITY_CONSTANT
+                else:
+                    summary_df['subsample_factor'] = 0
+                    summary_df['density'] = 0
+        else:
+            summary_df['subsample_factor'] = 0
+            summary_df['density'] = 0
+
+        background_df = df_raw[df_raw['id'].astype(str).str.contains("Background.tif")].copy()
+        if not background_df.empty:
+            lat, lon = get_geographic_data(background_df['id'].iloc[0])
+            summary_df[['lat', 'lon']] = lat, lon
+        else:
+            summary_df[['lat', 'lon']] = None, None
+
+        column_order = (
+            metadata_cols +
+            [grouping_col, 'pred_id', 'pred_conf', 'total_counts', 'density', 'subsample_factor', 'lat', 'lon'] +
+            sorted([col for col in conf_columns if col in summary_df.columns])
+        )
+
+        columns_order = [col for col in column_order if col in summary_df.columns]
+        summary_df = summary_df[columns_order].sort_values(by='pred_label')
+        summary_df['total_counts'] = summary_df['total_counts'].astype('float64')
+        return summary_df, columns_order
+    else:
+        empty_summary = pd.DataFrame(columns=metadata_cols + ['pred_label', 'pred_id', 'pred_conf', 'total_counts', 'density', 'subsample_factor', 'lat', 'lon'])
+        columns_order = metadata_cols + ['pred_label', 'pred_id', 'pred_conf', 'total_counts', 'density', 'subsample_factor', 'lat', 'lon']
+        return empty_summary, columns_order
+
+def process_predictions_to_dataframe(imgs, preds, label_numeric, vocab, cruise_name, date_str, time_str,
+                                    timestamp_path, results_dir, processed_dir, density_constant, csv_filename, tar_file_path):
+    """
+    Process prediction results into DataFrames and save to CSV files.
+
+    Args:
+        imgs: List of image file paths
+        preds: Prediction probabilities from the model
+        label_numeric: Numeric labels corresponding to predictions
+        vocab: Vocabulary mapping numeric labels to class names
+        cruise_name: Name of the cruise
+        date_str: Date string
+        time_str: Time string
+        timestamp_path: Path to the directory containing additional files (HitsMisses.txt, etc.)
+        results_dir: Directory to save detailed CSV results
+        processed_dir: Directory to save summary CSV results
+        density_constant: Constant used for density calculations
+        csv_filename: Path for the detailed CSV file to save
+        tar_file_path: Path to the original tar file
+
+    Returns:
+        Tuple of paths to the saved CSV files (detailed, summary)
+    """
+    # Create DataFrame of outputs
+    df_raw = pd.DataFrame()
+    df_raw['id'] = imgs  # Image filepaths
+    df_raw['tar_file'] = tar_file_path  # Add the tar file path
+    df_raw['cruise_name'] = cruise_name
+
+    # Date/time column
+    df_raw['date'] = pd.to_datetime(date_str)
+    df_raw['time'] = pd.to_datetime(time_str, format='%H%M').strftime('%H:%M')
+    df_raw['datetime'] = pd.to_datetime(df_raw['date'].astype(str) + ' ' + df_raw['time'].astype(str))
+
+    # Create new column for the pi-sensor used
+    filtered_df = df_raw[~df_raw['id'].astype(str).str.contains("Background.tif")]
+    if not filtered_df.empty:
+        path_str = str(filtered_df['id'].iloc[0])
+        path_parts = re.split(r'[/\\]', path_str)
+        df_raw['instrument_code'] = path_parts[-1].split('.')[0]
+    else:
+        df_raw['instrument_code'] = None
+
+    # Create new column for prediction labels
+    label_mapping = {i: class_name for i, class_name in enumerate(vocab)}
+    df_raw['pred_id'] = label_numeric
+    df_raw['pred_label'] = df_raw['pred_id'].map(label_mapping)
+    df_raw['pred_conf'] = [preds.numpy()[i, pred_id] for i, pred_id in enumerate(df_raw['pred_id'])]
+
+    # Add confidence scores of the other classes with named columns
+    for class_id, class_name in label_mapping.items():
+        df_raw[f"{class_name}_conf"] = preds.numpy()[:, class_id]
+
+    # Generate a summarized version of the report for each 10-minute bin
+    summary_df, columns_order = summarize_predictions(df_raw, timestamp_path, density_constant)
+
+    # Create filename for the summary CSV
+    csv_filename_summarized = processed_dir / f"{cruise_name}_{date_str}_{time_str}_summary.csv"
+    summary_df.to_csv(csv_filename_summarized, index=False, float_format='%.2f')
+
+    # Remove Background.tif rows
+    df_raw = df_raw[~df_raw['id'].astype(str).str.contains("Background.tif")].copy()
+
+    # Merge with summary statistics
+    if not summary_df.empty:
+        df_raw = df_raw.merge(
+            summary_df[['pred_label', 'lat', 'lon', 'subsample_factor', 'total_counts', 'density']],
+            on='pred_label',
+            how='left'
+        )
+    else:
+        for col in ['lat', 'lon', 'subsample_factor', 'total_counts', 'density']:
+            df_raw[col] = None
+
+    # Re-arrange columns for extensive .csv based on the previous output
+    df_raw = df_raw[['id', 'tar_file'] + columns_order]
+    # Save individual CSV for each 10-minute bin
+    df_raw.to_csv(csv_filename, index=False, float_format='%.9f')
+
+    return csv_filename, csv_filename_summarized

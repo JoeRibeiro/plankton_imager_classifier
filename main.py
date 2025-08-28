@@ -91,17 +91,22 @@ if __name__ == "__main__":
         MODEL_NAME = "ResNet50-Detailed" # Reset the variable in case different spelling is used
         print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}")
 
-    # Step 1: Unpack the tarred data
-    untarred_dir = extract_tars(SOURCE_BASE_DIR, max_jobs)
-
-    # Step 3: Conduct inference
+    # Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)
-    results_dir, processed_dir = conduct_plankton_inference(MODEL_NAME, model_weights, TRAIN_DATASET, untarred_dir, CRUISE_NAME, BATCH_SIZE, DENSITY_CONSTANT)
+    results_dir, processed_dir = conduct_plankton_inference(SOURCE_BASE_DIR, # Path to raw .tar dir
+                                                            MODEL_NAME, # String pointing to OSPAR or ResNet50 model
+                                                            model_weights, # Actual .pth files
+                                                            TRAIN_DATASET, # Training dataset required for FastAI
+                                                            CRUISE_NAME, # User-defined variable used for outputs
+                                                            BATCH_SIZE,  # User-defined variable, how much images to process per batch
+                                                            DENSITY_CONSTANT, # 340L per 10 minutes passing through Pi-10
+                                                            max_jobs # For parallelization in remove_corrupted_files.py
+                                                            )
 
-    # Step 4: Randomly select n samples of each predicted class for validation and future training iterations
+    # Randomly select n samples of each predicted class for validation and future training iterations
     get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, model_weights, n_images=100)
 
-    # Step 5: Generate the Word document detailing the cruise
+    # Generate the Word document detailing the cruise
     document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, model_weights)
 
     # Step 6: Compress original data for long-term storage
