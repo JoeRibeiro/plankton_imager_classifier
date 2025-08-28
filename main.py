@@ -4,19 +4,9 @@ import argparse
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # For MAC-OS users
 
 # Custom modules
-from src.untar import extract_tars
-from src.remove_corrupted_files import remove_corrupted_files
 from src.inference import conduct_plankton_inference
 from src.random_samples import get_random_samples
 from src.generate_report import create_word_document
-
-# # Hard-coded variables
-# MODEL_NAME = "ResNet50-detailed"
-# TRAIN_DATA_PATH = Path('data/DETAILED_merged')
-# BATCH_SIZE = 600 # Modify this based on your available memory
-# CRUISE_NAME = "MONS-Tridens" # For outputs; do not use spaces in this string
-# OSPAR = 'data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp' # From: https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/
-# DENSITY_CONSTANT = 340  # This constant is used in the R code for normalization into N per Liter (#/L)
 
 if __name__ == "__main__":
         # Set up argument parser with default values
@@ -25,7 +15,7 @@ if __name__ == "__main__":
     # Mandatory arguments
     parser.add_argument(
         '--source_dir', type=str,
-        default="data/2024_HERAS",
+        #default="data/2024_HERAS",
         help='Base directory for source data captured by the Pi-10'
     )
 
@@ -37,7 +27,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--cruise_name', type=str,
-        default="2024_HERAS",
+        #default="2024_HERAS",
         help='Please input the name of the cruise/survey. Used for outputs and intermediate files.'
     )
 
@@ -109,5 +99,5 @@ if __name__ == "__main__":
     # Generate the Word document detailing the cruise
     document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, model_weights)
 
-    # Step 6: Compress original data for long-term storage
+    # Compress original data for long-term storage
     # Not implemented yet

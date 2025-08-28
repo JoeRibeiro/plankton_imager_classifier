@@ -9,6 +9,7 @@ models/*
 reports/*
 /results/
 /doc/*
+/train/*
 
 
 # C extensions
