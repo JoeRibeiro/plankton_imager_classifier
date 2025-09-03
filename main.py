@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import argparse
+import sys
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # For MAC-OS users
 
 # Custom modules
@@ -66,16 +67,21 @@ if __name__ == "__main__":
     max_jobs = min(8, os.cpu_count() or 4)  # Use up to 8 workers or CPU count, whichever is smaller
 
     # Set the correct model based on user input
-    if MODEL_NAME == 'OSPAR':
-        # OSPAR classifier for XX number of classes; significantly faster compared to the default option
-        print("Not implemented yet...", flush=True)
-        model_weights = ""
+    if 'ospar' in MODEL_NAME.lower():
+        # OSPAR classifier for six number of classes; significantly faster compared to the default option
+        model_weights = Path('Plankton_imager_v01_stage-2_Best')
         print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}", flush=True)
     else:
         # Default option is the ResNet50 predicting 49 different plankton and non-plankton classes
         model_weights = Path('Plankton_imager_v01_stage-2_Best')
         MODEL_NAME = "ResNet50-Detailed" # Reset the variable in case different spelling is used
         print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}, flush=True")
+    
+    # Check if the model weights file exists
+    # FastAI hardcodes the location in /models/ and does not add .pth initially
+    if not os.path.exists(os.path.join("models", f"{model_weights}.pth")):
+        print(f"Error: The model weights file '{model_weights}' does not exist.", flush=True)
+        sys.exit(1)  # Exit with an error code
 
     # Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)
