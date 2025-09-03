@@ -89,8 +89,20 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         # cleaned_df.write_excel(excel_path, autofit=True) # Excel instead of CSV for easier use
         
         # Re-construct filepaths from .tar datasets
-        filenames = sampled_df['id'].str.split("\\").list.last()
+        sampled_df = sampled_df.with_columns([
+            pl.col("id")
+            .str.replace_all(r"\\", "/")  # Normalize slashes (Windows backslashes)
+            .str.split("/")               # Split by slash
+            .list.get(-1)                 # Take last part (filename)
+            #.str.strip_chars(".tif")      # Remove ".tif"
+            .alias("image_id")            # Store as new column
+        ])
+        filenames = sampled_df['image_id'].to_list()
         tar_files = sampled_df['tar_file'].to_list()
+
+        # print(f"Example of ID column: {sampled_df['id'][0]}")
+        # print(f"Example of processed filenames: {filenames}")
+        # print(f"Example of tar_files {tar_files}")
 
         # Process each file
         for filename, tar_path in zip(filenames, tar_files):
@@ -99,23 +111,29 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Open tar file and extract the specific file
                 with tarfile.open(tar_path, 'r') as tar:
-                    # print(tar.getnames())
+                    # Try both slash formats without scanning all entries
+                    # Implemented to prevent iterating over all files within the .tar
+                    file_obj = None
+                    for path in (f"RawImages/{filename}", f"RawImages\\{filename}"):
+                        try:
+                            file_obj = tar.extractfile(path)
+                            if file_obj:
+                                break  # Success
+                        except KeyError:
+                            continue  # Try next format
 
-                    # Clean the internal path
-                    path = f"RawImages\\{filename}"
-
-                    # Extract the file
-                    tar.extract(path, path=temp_dir)
-
-                    # Construct path to extracted file
-                    extracted_path = os.path.join(temp_dir, path)
+                    if file_obj is None:
+                        raise FileNotFoundError(
+                            f"[ERROR] File '{filename}' not found in tar '{tar_path}'"
+                        )
 
                     # Construct destination path
                     dest_path = os.path.join(class_dir, os.path.basename(filename))
 
-                    # Move the file
-                    shutil.copy2(extracted_path, dest_path)
-                    # print(f"[INFO] Extracted and copied {filename} to {dest_path}")
+                    # Write to disk directly
+                    with open(dest_path, 'wb') as out_f:
+                        shutil.copyfileobj(file_obj, out_f)
+                        # print(f"[INFO] Extracted and copied {filename} to {dest_path}")
 
         print(f"[INFO] Finished processing class {class_id}. Copied {len(sampled_df)} files.")
     print(f"[INFO] Finished processing all classes.")

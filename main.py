@@ -9,25 +9,27 @@ from src.random_samples import get_random_samples
 from src.generate_report import create_word_document
 
 if __name__ == "__main__":
-        # Set up argument parser with default values
+    print("[INFO] Starting main.py", flush=True)
+
+    # Set up argument parser with default values
     parser = argparse.ArgumentParser(description='Plankton Imager Classifier command-line tool.')
 
     # Mandatory arguments
     parser.add_argument(
         '--source_dir', type=str,
-        #default="data/2024_HERAS",
+        # default="data/2024_HERAS",
         help='Base directory for source data captured by the Pi-10'
     )
 
     parser.add_argument(
         '--model_name', type=str,
-        #default="ResNet50-detailed",
+        default="ResNet50-detailed",
         help="Please input the name of the model to use. Options are 'OSPAR' and 'ResNet50-Detailed"
     )
 
     parser.add_argument(
         '--cruise_name', type=str,
-        #default="2024_HERAS",
+        # default="2024_HERAS",
         help='Please input the name of the cruise/survey. Used for outputs and intermediate files.'
     )
 
@@ -45,12 +47,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        '--ospar', type=str,
-        default='data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp',
-        help='Path to OSPAR file'
-    )
-
-    parser.add_argument(
         '--density_constant',
         type=int, default=340,
         help='Density constant for normalization to get results in units per liter.'
@@ -63,8 +59,8 @@ if __name__ == "__main__":
     TRAIN_DATASET = Path(args.train_data_path)
     BATCH_SIZE = args.batch_size
     CRUISE_NAME = args.cruise_name
-    OSPAR = args.ospar
     DENSITY_CONSTANT = args.density_constant
+    print("[INFO] Arguments received:", args, flush=True)
 
     # Define the number of workers to use for parallelization
     max_jobs = min(8, os.cpu_count() or 4)  # Use up to 8 workers or CPU count, whichever is smaller
@@ -72,14 +68,14 @@ if __name__ == "__main__":
     # Set the correct model based on user input
     if MODEL_NAME == 'OSPAR':
         # OSPAR classifier for XX number of classes; significantly faster compared to the default option
-        print("Not implemented yet...")
+        print("Not implemented yet...", flush=True)
         model_weights = ""
-        print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}")
+        print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}", flush=True)
     else:
         # Default option is the ResNet50 predicting 49 different plankton and non-plankton classes
         model_weights = Path('Plankton_imager_v01_stage-2_Best')
         MODEL_NAME = "ResNet50-Detailed" # Reset the variable in case different spelling is used
-        print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}")
+        print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}, flush=True")
 
     # Conduct inference
     # Note: This is the only script that uses GPU (CPU option available, but discouraged)
@@ -97,7 +93,7 @@ if __name__ == "__main__":
     get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, model_weights, n_images=100)
 
     # Generate the Word document detailing the cruise
-    document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, model_weights)
+    document_path = create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, model_weights)
 
     # Compress original data for long-term storage
     # Not implemented yet

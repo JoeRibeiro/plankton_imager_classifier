@@ -21,9 +21,9 @@
 pip install git@github.com:geoJoost/plankton_imager_classifier.git
 
 # Setup the environment
-conda create --name mons
+conda create --name plankton_imager
 
-conda activate mons
+conda activate plankton_imager
 
 conda install pip
 
@@ -35,7 +35,7 @@ pip install fastai
 # See: https://pytorch.org/get-started/locally/
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geopandas python-docx memory_profiler pyarrow
+conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geopandas python-docx memory_profiler pyarrow fiona pyproj
 ```
 
 ### Usage

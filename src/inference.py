@@ -10,12 +10,14 @@ import glob
 import time
 from datetime import timedelta
 import sys
+import tarfile, tempfile
 
 # Custom modules
 from src.remove_corrupted_files import process_corrupted_files
 from src.utils import process_predictions_to_dataframe
 
 def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN_DATASET, CRUISE_NAME, BATCH_SIZE, DENSITY_CONSTANT, max_jobs):
+    print(f"[INFO] Started inference...", flush=True)
     start_time = time.time()
     np.random.seed(42)
 
@@ -45,10 +47,9 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
             pad_mode='zeros'),
             Normalize.from_stats(*imagenet_stats)]
     )
-
-    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE)
-    learn = vision_learner(dls, resnet50, metrics=error_rate)
-
+    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE, num_workers=1) # Note: on Windows set to 0; can silently fail on HPC systems
+    learn = vision_learner(dls, resnet50, metrics=error_rate, pretrained=False)
+    
     # Check for multiple GPUs and use DataParallel if available
     # NOTE: Not debugged; not recommended to use multiple GPU's without coding expertise
     if torch.cuda.device_count() > 1:
@@ -123,6 +124,8 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
                     imgs = get_image_files(timestamp_path)
                     imgs.sort()
 
+                    imgs = imgs[:100]
+
                     if len(imgs) == 0:
                         print(f"[WARNING] No images found in {tar_file}")
                         print("=================================================")
@@ -174,11 +177,11 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
 
                     except Exception as e:
                         with open(log_file_path, 'a') as log_file:
-                            log_file.write(f"[ERROR] Error processing {timestamp_path}: {e}\n")
-                        print(f"[ERROR] Error processing {timestamp_path}: {e}")
+                            log_file.write(f"[ERROR] Error processing {tar_file}: {e}\n")
+                        print(f"[ERROR] Error processing {tar_file}: {e}")
                         sys.exit(1) # Force code to stop
 
-                    print(f"[INFO] Finished processing: {timestamp_path}")
+                    print(f"[INFO] Finished processing: {tar_file}")
                     print("=================================================")
 
     inference_time = time.time()

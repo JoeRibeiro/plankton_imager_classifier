@@ -4,21 +4,12 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 from concurrent.futures import ThreadPoolExecutor
 
-def normalize_path(path):
-    """Normalize path separators and convert to string if needed."""
-    if isinstance(path, Path):
-        path = str(path)
-    # Replace all backslashes with forward slashes
-    path = path.replace('\\', '/')
-    # Ensure we have proper path separators for the current OS
-    return os.path.normpath(path)
-
 def is_corrupted(file_path):
     """Check if a TIFF file is corrupted."""
     try:
         with Image.open(file_path) as img:
             img.verify()  # Verify file integrity
-            img.load()    # Load image data to catch more corruption cases
+            # img.load()    # Load image data to catch more corruption cases
         return False  # File is not corrupted
     except (UnidentifiedImageError, OSError):
         return True  # File is corrupted

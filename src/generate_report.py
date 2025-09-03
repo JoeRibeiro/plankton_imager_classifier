@@ -14,6 +14,7 @@ from PIL.ExifTags import GPSTAGS
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 import matplotlib.image as mpimg
 import polars as pl
+import re
 
 # Custom modules
 from src.report_visualizations import *
@@ -84,6 +85,65 @@ def get_geographic_data(image_path):
                 longitude = -longitude
 
             return latitude, longitude
+
+# Combine date and time to create a proper datetime object
+def create_datetime(row):
+    if pd.isna(row['datetime']):
+        return pd.NaT
+    # Parse date and time separately, then combine them
+    date_part = pd.to_datetime(row['datetime'], errors='coerce').date()
+    time_part = pd.to_datetime(row['time'], format='%H:%M', errors='coerce').time()
+
+    return pd.Timestamp.combine(date_part, time_part)
+
+def create_datetime_polars(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Combine date and time columns into a single datetime column within a Polars DataFrame.
+
+    Parameters:
+    df: Polars DataFrame containing date and time columns to be combined.
+
+    Returns:
+    Polars DataFrame with a new datetime column.
+    """
+    # Combine date and time into a full datetime string format
+    df = df.with_columns(
+        (
+            pl.col("date") + " " + pl.col("time")
+        ).str.strptime(pl.Datetime, "%Y-%m-%d %H:%M", strict=False).alias("datetime")
+    )
+    return df
+
+def get_datetime_min_max(lazy_df, datetime_col):
+    """
+    Retrieve the minimum and maximum values from a datetime column in a LazyFrame.
+
+    Parameters:
+    lazy_df: Polars LazyFrame containing the data.
+    datetime_col: Name of the datetime column to analyze.
+
+    Returns:
+    A tuple containing the min and max datetime values.
+    """
+    # Select the min and max of the datetime column
+    result = lazy_df.select([
+        pl.col(datetime_col).min().alias("min_datetime"),
+        pl.col(datetime_col).max().alias("max_datetime")
+    ]).collect()  # Collect to execute the query
+
+    # Extract the min and max values from the result
+    min_date = result.item(0, "min_datetime")
+    max_date = result.item(0, "max_datetime")
+
+    # Calculate the number of hours between min and max datetime
+    if min_date and max_date:
+
+        delta = pd.to_datetime(max_date) - pd.to_datetime(min_date)
+        hours = delta.total_seconds() / 3600  # Convert seconds to hours
+    else:
+        hours = 0  # If there's no data or invalid data, hours is zero
+
+    return min_date, max_date, hours
 
 # General data description
 def compute_class_statistics(df, total_images, DENSITY_CONSTANT):
@@ -187,9 +247,24 @@ def create_cruise_path(lazy_df, CRUISE_NAME):
         .group_by("datetime")
         .agg([
             pl.col("lat").first().alias("lat"),
-            pl.col("lon").first().alias("lon")
+            pl.col("lon").first().alias("lon"),
+            pl.col("time").first().alias("time")
         ])
-    ).collect().to_pandas().set_index('datetime')
+    ).collect().to_pandas()
+
+    # Handle any datetime column taken at midnight (00:00), which does not get a timestamp attached within the datetime
+    measurement_locations['datetime'] = measurement_locations.apply(create_datetime, axis=1)
+
+    # Set index and clean data
+    measurement_locations = measurement_locations.set_index('datetime')
+    measurement_locations = measurement_locations.dropna(subset=['lat', 'lon'])
+
+    # If no valid data points, return defaults
+    if len(measurement_locations) == 0:
+        print("[WARNING] No valid coordinates found to create cruise path. Returning empty results.")
+        # Return empty GeoDataFrame and default values
+        empty_gdf = gpd.GeoDataFrame(columns=['lat', 'lon', 'geometry'])
+        return empty_gdf, 0.0
 
     # Create a GeoDataFrame from the adjusted data
     geometry = gpd.points_from_xy(measurement_locations['lon'], measurement_locations['lat'], crs=4326)
@@ -197,7 +272,7 @@ def create_cruise_path(lazy_df, CRUISE_NAME):
 
     # Sort the GeoDataFrame by the index (datetime) to ensure the points are in chronological order
     gdf.sort_index(inplace=True)
-    gdf.index = pd.to_datetime(gdf.index)
+    gdf.index = pd.to_datetime(gdf.index, format='ISO8601') # TODO: Verify if this is correct using the ISO standard
 
     # Save measurement locations as GeoPackage
     output_path = Path(f"data/{CRUISE_NAME}_results/{CRUISE_NAME}_measurement_locations.gpkg")
@@ -240,24 +315,11 @@ def create_cruise_path(lazy_df, CRUISE_NAME):
     total_length_km = cruise_path_gdf['length_km'].sum()
     print(f"[INFO] Total length of all linestring segments: {total_length_km:.2f} km")
 
-    # Calculate total hours of footage
-    number_of_samples = len(gdf)
-    total_hours = (number_of_samples * 10) / 60  # 10 minutes per sample, divided by 60 to get hours
-    print(f"[INFO] Total hours of footage: {total_hours:.2f}")
-
-    # Get min and max dates
-    min_date = gdf.index.min()
-    max_date = gdf.index.max()
-    print(f"[INFO] Minimum date: {min_date}")
-    print(f"[INFO] Maximum date: {max_date}")
-
-    cruise_path_gdf = cruise_path_gdf.to_crs(epsg=4258) # Use CRS with degrees for plotting purposes
-
-    return cruise_path_gdf, total_length_km, total_hours, min_date, max_date
+    return cruise_path_gdf, total_length_km
 
 # Automated report
 # @profile
-def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME):
+def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME):
     print(f"[INFO] Reading DataFrames in folder: {results_dir}")
 
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
@@ -293,12 +355,15 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     os.makedirs(temp_dir, exist_ok=True)
 
     # Get cruise path information as geodata
-    cruise_path, total_length_km, total_hours, start_date, end_date = create_cruise_path(lazy_df, CRUISE_NAME) # GeoDataFrame
+    cruise_path, total_length_km = create_cruise_path(lazy_df, CRUISE_NAME) # GeoDataFrame
     minx, miny, maxx, maxy = cruise_path.total_bounds # Used for general text description
 
     def longitude_direction(lon):
         # Determine the direction for longitude
         return "W" if lon < 0 else "E"
+    
+    # Get min-max date
+    start_date, end_date, total_hours = get_datetime_min_max(lazy_df, 'datetime')
 
     # Iterate over each class to read in less volume, compared ot the entire dataset at once
     # Can still be reasonably high (>10,000,000 rows) with some classes (e.g., detritus)
@@ -309,6 +374,10 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         # Get and clean subset for current class
         subset_df = lazy_df.filter(pl.col("pred_id") == class_id).collect()
         print(f"[INFO] Processing {subset_df.height:,} rows for class {class_id}")
+
+        # For images taken at midnight (00:00), the timestamp is not correctly integrated into datetime
+        # Combine date and time into a datetime column within the Polars DataFrame
+        subset_df = create_datetime_polars(subset_df)
 
         # 1. Compute and store statistics (number of predictions, density, model confidence)
         stats_dict = compute_class_statistics(subset_df, total_rows, DENSITY_CONSTANT)
@@ -326,28 +395,41 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         # 5. Generate figure of randomly selected images to illustrate predicted targets
         img_fig = plot_random_images(subset_df, num_images=80)
 
-        if any(fig is None for fig in [density_fig, map_fig, confidence_fig]):
-            print(f"[WARNING] Skipping class {class_id} due to missing figures")
-            continue
+        # Check if any required figure (other than map_fig) is None
+        if any(fig is None for fig in [density_fig, confidence_fig]):
+            print(f"[WARNING] Skipping class {class_id} due to missing essential figures")
+            continue  # Skip the rest of the loop iteration if any essential figure is None
 
         # Save figures and store paths
         figure_paths = {}
         for fig_type, fig in [
             ('confidence', confidence_fig),
             ('density', density_fig),
-            ('map', map_fig),
             ('img', img_fig)
         ]:
+            if fig is None:
+                raise ValueError(f"{fig_type}_fig is None")
+
             path = os.path.join(temp_dir, f'{fig_type}_fig_{class_id}.png')
             fig.savefig(path)
             plt.close(fig)
             figure_paths[fig_type] = path
 
+        # Handle map_fig separately because it's optional, in case no geodata is available
+        if map_fig is not None:
+            map_path = os.path.join(temp_dir, f'map_fig_{class_id}.png')
+            map_fig.savefig(map_path)
+            plt.close(map_fig)
+            figure_paths['map'] = map_path
+        else:
+            print("[WARNING] map_fig is None, skipping map figure save.")
+        
         # Store all data needed for document generation
         class_data[class_id] = {
             'pred_label': subset_df['pred_label'].first(),
             'figure_paths': figure_paths
         }
+
 
         # TODO: Remove
         if class_id > 3:
@@ -372,11 +454,12 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     )
 
     # Plot map of the cruise-path
-    document.add_heading('Cruise overview', level=2)
-    cruise_fig_path = os.path.join(temp_dir, f'cruise_path.png')
-    cruise_fig = plot_cruise_path(cruise_path, cruise_fig_path, CRUISE_NAME)
-    document.add_picture(cruise_fig_path, width=Inches(6))
-    document.add_paragraph(f"Map showing the path taken during the {CRUISE_NAME} survey.")
+    if cruise_path is not None and not cruise_path.empty: # Skip if no coordinates are available
+        document.add_heading('Cruise overview', level=2)
+        cruise_fig_path = os.path.join(temp_dir, f'cruise_path.png')
+        cruise_fig = plot_cruise_path(cruise_path, cruise_fig_path, CRUISE_NAME)
+        document.add_picture(cruise_fig_path, width=Inches(6))
+        document.add_paragraph(f"Map showing the path taken during the {CRUISE_NAME} survey.")
 
     # Plot graph of data availability during the cruise
     data_availability_path = create_data_availability_plot(lazy_df, 'datetime', start_date, end_date, temp_dir)
@@ -517,9 +600,13 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
         document.add_picture(figure_paths['density'], width=Inches(6))
         document.add_paragraph(f"Figure showcasing the daily density estimates for {pred_label} per 10 minutes.")
 
-        document.add_heading('Spatio-temporal density', level=2)
-        document.add_picture(figure_paths['map'], width=Inches(6))
-        document.add_paragraph(f"Map showing mean density estimates for {pred_label} along the cruise transect. OSPAR eutrophication areas are plotted in the background with different colours.")
+        if 'map' in figure_paths:
+            document.add_heading('Spatio-temporal density', level=2)
+            document.add_picture(figure_paths['map'], width=Inches(6))
+            document.add_paragraph(f"Map showing mean density estimates for {pred_label} along the cruise transect. EEZ and coastlines are plotted in the background.")
+        else:
+            # Add a placeholder text
+            document.add_paragraph("Map figure is not available for this class.")  
         
         document.add_heading('Classification examples', level=2)
         document.add_picture(figure_paths['img'], width=Inches(6))
@@ -543,17 +630,3 @@ def create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAI
     print(f"[INFO] Word document created at: {document_path}")
 
     return document_path
-
-# if __name__ == "__main__":
-#     # Hard-coded variables
-#     MODEL_FILENAME = Path('Plankton_imager_v01_stage-2_Best')
-#     TRAIN_DATASET = Path('data/DETAILED_merged')
-#     results_dir = 'data/MONS-Pelagic-Fish_results'
-#     CRUISE_NAME = "MONS-Pelagic-Fish"
-#     OSPAR = 'data/ospar_comp_au_2023_01_001-gis/ospar_comp_au_2023_01_001.shp' # From: https://odims.ospar.org/en/submissions/ospar_comp_au_2023_01/
-#     DENSITY_CONSTANT = 340  # This constant is used in the R code for normalization into N per Liter (#/L)
-
-#     # Step 5: Generate the Word document detailing the cruise
-#     document_path = create_word_document(results_dir, OSPAR, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME)
-#     print(f"Document generated at: {document_path}")
-

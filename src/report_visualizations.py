@@ -10,9 +10,25 @@ import matplotlib.image as mpimg
 
 def create_data_availability_plot(lazy_df, datetime_col, start_date, end_date, temp_dir):
     """Create data availability plots that scale from hours to months of data"""
+    def parse_date_string(date_str):
+        # Standardize the date string format by appending ' 00:00:00' if no time is present
+        # This occurs when the image is taken at 00:00
+        if len(date_str.split(' ')) == 1:  # Only date part present
+            date_str += ' 00:00:00'
+
+        # Parse the standardized string into a datetime object
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        return date_obj
+    
+    # Parse the date strings into datetime objects
+    start_date = parse_date_string(start_date)
+    end_date = parse_date_string(end_date)
+
+    print(f"type(start_date): {type(start_date)}; type(end_date): {type(end_date)}")
+    print(f"Values: {start_date, end_date}")
 
     # First calculate the total duration in days
-    duration_days = (end_date - start_date).days + 1  # +1 to count both start and end days
+    duration_days = (start_date - end_date).days + 1  # +1 to count both start and end days
 
     # Create output directory if it doesn't exist
     os.makedirs(temp_dir, exist_ok=True)
@@ -20,11 +36,16 @@ def create_data_availability_plot(lazy_df, datetime_col, start_date, end_date, t
     # Process the data at full resolution (10-minute intervals)
     full_resolution_data = (
         lazy_df
-        .sort(by='datetime')
-        .with_columns(pl.col(datetime_col).str.to_datetime())
+        .with_columns(
+            (
+                pl.col("date") + " " + pl.col("time")
+            ).str.strptime(pl.Datetime, "%Y-%m-%d %H:%M", strict=False).alias(datetime_col)
+        )
+        # Sort and group by dynamic time intervals (10 minutes)
+        .sort(by=datetime_col)
         .group_by_dynamic(datetime_col, every="10m")
         .agg(pl.count().alias("count"))
-        .collect()
+        .collect()  # Collect the LazyFrame into a DataFrame after grouping
         .to_pandas()
     )
 
@@ -316,7 +337,6 @@ def plot_image_count(stats_df, output_path):
     plt.savefig(output_path)
     # plt.show()
 
-
 # Confidence graph
 def plot_confidence(class_df):
     print(f"[INFO] Started confidence plot for {class_df['pred_label'].first()}")
@@ -375,7 +395,6 @@ def plot_density_graph(class_df, class_id, pred_labels):
     print(f"[INFO] Started line graph for {class_df['pred_label'].first()}")
     grouped_df = (
         class_df
-        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
         .sort(by='datetime')
         .group_by_dynamic("datetime", every="10m")
         .agg([
@@ -386,7 +405,6 @@ def plot_density_graph(class_df, class_id, pred_labels):
             pl.col("pred_id").first(),
             pl.col("pred_label").first(),
             pl.col("density").mean()
-            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
         ])
     )
     # Filter out None values from unique_dates
@@ -459,7 +477,6 @@ def plot_class_density_map(class_df, class_id, pred_labels, cruise_path, CRUISE_
     print(f"[INFO] Started density map for class #{class_id}")
     grouped_df = (
         class_df
-        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
         .sort(by='datetime')
         .group_by_dynamic("datetime", every="10m")
         .agg([
@@ -472,14 +489,21 @@ def plot_class_density_map(class_df, class_id, pred_labels, cruise_path, CRUISE_
             pl.col("density").mean(),
             pl.col("lat").first(),
             pl.col("lon").first()
-            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
         ])
     )
+
+    # Convert to a GeoDataFrame
+    df_pandas = grouped_df.to_pandas().set_index('datetime')
+
+    # Check if there are any valid lat and lon values
+    if df_pandas['lat'].isna().all() or df_pandas['lon'].isna().all():
+        print("[WARNING] No valid lat-lon data found. Skipping plot.")
+        return None
 
     # Convert the class-specific DataFrame to a GeoDataFrame
     gdf = (
         gpd.GeoDataFrame(
-            grouped_df.to_pandas().set_index('datetime'), # Get Pandas DataFrame
+            df_pandas,
             geometry=gpd.points_from_xy(grouped_df['lon'], grouped_df['lat'], crs="EPSG:4326")
         )
     )
@@ -492,6 +516,7 @@ def plot_class_density_map(class_df, class_id, pred_labels, cruise_path, CRUISE_
     coastlines = coastlines.to_crs(epsg=4258)
     eez = eez.to_crs(epsg=4258)
     gdf = gdf.to_crs(epsg=4258)
+    cruise_path = cruise_path.to_crs(epsg=4258)
 
     # Plot the map
     fig, ax = plt.subplots(figsize=(6, 8))
@@ -591,7 +616,11 @@ def plot_random_images(class_df, num_images=80):
     sampled_df = sampled_df.sort("pred_conf", descending=True)
 
     # Extract the file paths and other needed data from the sampled DataFrame
-    filenames = sampled_df['id'].str.split("\\").list.last()
+    filenames = (sampled_df['id']
+                .str.replace_all(r"\\", "/")  # Normalize slashes
+                .str.split("/")               # Split by slash
+                .list.get(-1)                 # Take last part (filename)
+                .to_list())
     pred_confs = sampled_df['pred_conf'].to_list()
     tar_files = sampled_df['tar_file'].to_list()
 
@@ -611,15 +640,20 @@ def plot_random_images(class_df, num_images=80):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Open the tar file
             with tarfile.open(tar_path, 'r') as tar:
-                # Clean the internal path (remove leading slashes)
-                path = f"RawImages\\{filename}"
-
-                # Extract the file
-                tar.extract(path, path=temp_dir)
-
-                img = mpimg.imread(os.path.join(temp_dir, path))
-                ax.imshow(img)
-                ax.axis('off')  # Hide axes
+                for path in (f"RawImages/{filename}", f"RawImages\\{filename}"): # Try both Windows and Unix style
+                    try:
+                        # Extract .tif file
+                        tar.extract(path, path=temp_dir)
+                        extracted_path = os.path.join(temp_dir, path.replace('\\', '/'))
+                        if os.path.exists(extracted_path):
+                            img = mpimg.imread(extracted_path)
+                            ax.imshow(img)
+                            ax.axis('off')
+                            ax.set_title(f"Conf: {pred_conf:.2f}", fontsize=6)
+                            file_found = True
+                            break
+                    except KeyError:
+                        continue
                 ax.set_title(f"Conf: {pred_conf:.2f}", fontsize=6)  # Set the title with the confidence value
 
     # Hide any unused subplots

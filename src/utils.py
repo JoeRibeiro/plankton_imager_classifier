@@ -411,19 +411,22 @@ def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
                 lines = f.read().strip().split("\n")
                 hits, misses = [], []
                 for line in lines:
+                    # Split columns into two seperate variables
                     parts = line.split(',')
                     hit, miss = map(int, parts)
                     hits.append(hit), misses.append(miss)
 
-                if hits and misses:
+                    # Sum up for entire 10-minute bin
                     total_hits = sum(hits)
                     total_misses = sum(misses)
+
+                    # Calculate the subsample factor to account for image passing by the camera, but not being recorded
                     summary_df['subsample_factor'] = total_hits / (total_hits + total_misses) if (total_hits + total_misses) > 0 else 0
                     print(f"[INFO] Hits: {total_hits:,} | Misses: {total_misses:,}")
+
+                    # Calculate density in N/L
                     summary_df['density'] = (summary_df['total_counts'] / summary_df['subsample_factor']) / DENSITY_CONSTANT
-                else:
-                    summary_df['subsample_factor'] = 0
-                    summary_df['density'] = 0
+
         else:
             summary_df['subsample_factor'] = 0
             summary_df['density'] = 0
