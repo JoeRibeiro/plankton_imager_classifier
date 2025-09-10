@@ -82,11 +82,6 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         class_dir = os.path.join(output_dir, f"{str(class_id)}_{pred_label}")
         os.makedirs(class_dir, exist_ok=True)
         print(f"[INFO] Created directory for class: {class_dir}")
-
-        # We also save the subset_df for cross-referencing and additional metadata
-        excel_path = os.path.join(class_dir, f"{pred_label}_sampled.xlsx")
-        # cleaned_df, _ = clean_df(sampled_df, pred_labels, class_id) # Add proper datetime column to the document 
-        # cleaned_df.write_excel(excel_path, autofit=True) # Excel instead of CSV for easier use
         
         # Re-construct filepaths from .tar datasets
         sampled_df = sampled_df.with_columns([
@@ -99,10 +94,6 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         ])
         filenames = sampled_df['image_id'].to_list()
         tar_files = sampled_df['tar_file'].to_list()
-
-        # print(f"Example of ID column: {sampled_df['id'][0]}")
-        # print(f"Example of processed filenames: {filenames}")
-        # print(f"Example of tar_files {tar_files}")
 
         # Process each file
         for filename, tar_path in zip(filenames, tar_files):

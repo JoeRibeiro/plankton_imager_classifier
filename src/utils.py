@@ -12,9 +12,10 @@ import re
 import pandas as pd
 import os
 import re
+from PIL.ExifTags import GPSTAGS
+
 
 # Custom modules
-from src.generate_report import get_geographic_data
 
 """ Functions used in training """
 def analyze_tif_files(main_directory):
@@ -370,6 +371,40 @@ def plot_classification_metrics(images_root, merged_df, dpi=300):
     print(f"[INFO] Saved classification metrics plot to {output_path}")
 
 """ Functions used in inference pipeline """
+def get_geographic_data(image_path):
+    def convert_to_degrees(value):
+        """Convert GPS coordinates to decimal degrees."""
+        degrees, minutes, seconds = value
+        return degrees + (minutes / 60.0) + (seconds / 3600.0)
+
+    # Extract latitude-longitude from the EXIF metadata
+    print(f"Filepath for retrival: {image_path}")
+    print(f"Does Background.tif exist: {os.path.exists(image_path)}")
+    with Image.open(image_path) as image:
+        exif_data = image.getexif()
+        if exif_data:
+            ifd = exif_data.get_ifd(0x8825) # Code for GPSInfo, see: www.media.mit.edu/pia/Research/deepview/exif.html
+            
+            # TODO: Check for (0,0) coordinates
+            if not ifd:
+                print(f"[WARNING] '{image_path}' has no GPS information.")
+                return None
+
+            gps_info = {}
+            for key, val in ifd.items():
+                gps_info[GPSTAGS.get(key, key)] = val
+
+            # Extract and convert latitude and longitude
+            latitude = convert_to_degrees(gps_info['GPSLatitude'])
+            if gps_info['GPSLatitudeRef'] != 'N':
+                latitude = -latitude
+
+            longitude = convert_to_degrees(gps_info['GPSLongitude'])
+            if gps_info['GPSLongitudeRef'] != 'E':
+                longitude = -longitude
+
+            return latitude, longitude
+
 def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
     """
     Generate a summary dataframe with aggregated statistics from the detailed predictions.
@@ -427,13 +462,13 @@ def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
                     total_hits = sum(hits)
                     total_misses = sum(misses)
 
-                    # Calculate the subsample factor to account for image passing by the camera, but not being recorded
-                    summary_df['subsample_factor'] = total_hits / (total_hits + total_misses) if (total_hits + total_misses) > 0 else 0
-                    print(f"[INFO] Hits: {total_hits:,} | Misses: {total_misses:,}")
+                # Calculate the subsample factor to account for image passing by the camera, but not being recorded
+                summary_df['subsample_factor'] = total_hits / (total_hits + total_misses) if (total_hits + total_misses) > 0 else 0
+                print(f"[INFO] Hits: {total_hits:,} | Misses: {total_misses:,}")
 
-                    # Calculate density in N/L
-                    summary_df['density'] = (summary_df['total_counts'] / summary_df['subsample_factor']) / DENSITY_CONSTANT
-                    print(f"[DEBUG] Density:\n{summary_df[['pred_label','density']]}")
+                # Calculate density in N/L
+                summary_df['density'] = (summary_df['total_counts'] / summary_df['subsample_factor']) / DENSITY_CONSTANT
+                print(f"[DEBUG] Density:\n{summary_df[['pred_label','density']]}")
 
         else:
             summary_df['subsample_factor'] = 0
@@ -537,7 +572,9 @@ def process_predictions_to_dataframe(imgs, preds, label_numeric, vocab, cruise_n
 
     # Re-arrange columns for extensive .csv based on the previous output
     df_raw = df_raw[['id', 'tar_file'] + columns_order]
+
     # Save individual CSV for each 10-minute bin
-    df_raw.to_csv(csv_filename, index=False, float_format='%.9f')
+    df_raw.to_csv(csv_filename, index=False)
+    print(f"[INFO] Saved CSV to {csv_filename}") # Expanded output
 
     return csv_filename, csv_filename_summarized

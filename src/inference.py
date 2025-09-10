@@ -142,7 +142,7 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
                             print("[INFO] Made predictions")
                         except:
                             # If corrupted files are found, try to remove these files and re-try the predictions
-                            print(f"\n\n[WARNING] Corrupted files found in {timestamp_path}\n\n")
+                            print(f"\n\n[WARNING] Corrupted files found in {timestamp_path}")
                             
                             # Remove corrupted files
                             process_corrupted_files(imgs, timestamp, CRUISE_NAME)

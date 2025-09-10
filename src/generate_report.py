@@ -2,19 +2,13 @@
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from shapely.geometry import LineString
 from docx import Document
 from docx.shared import Inches
 import shutil
 from fastai.vision.all import *
 import os
-from PIL import Image
-from PIL.ExifTags import GPSTAGS
-from matplotlib.ticker import FuncFormatter, MultipleLocator
-import matplotlib.image as mpimg
 import polars as pl
-import re
 
 # Custom modules
 from src.report_visualizations import *
@@ -53,38 +47,6 @@ def get_pred_labels(TRAIN_DATA_PATH, MODEL_FILENAME):
     print(f"[INFO] Prediction labels available in {MODEL_FILENAME}:\n{pred_labels}")
 
     return pred_labels
-
-def get_geographic_data(image_path):
-    def convert_to_degrees(value):
-        """Convert GPS coordinates to decimal degrees."""
-        degrees, minutes, seconds = value
-        return degrees + (minutes / 60.0) + (seconds / 3600.0)
-
-    # Extract latitude-longitude from the EXIF metadata
-    with Image.open(image_path) as image:
-        exif_data = image.getexif()
-        if exif_data:
-            ifd = exif_data.get_ifd(0x8825) # Code for GPSInfo, see: www.media.mit.edu/pia/Research/deepview/exif.html
-            
-            # TODO" Check for (0,0) coordinates
-            if not ifd:
-                print(f"[WARNING] '{image_path}' has no GPS information.")
-                return None
-
-            gps_info = {}
-            for key, val in ifd.items():
-                gps_info[GPSTAGS.get(key, key)] = val
-
-            # Extract and convert latitude and longitude
-            latitude = convert_to_degrees(gps_info['GPSLatitude'])
-            if gps_info['GPSLatitudeRef'] != 'N':
-                latitude = -latitude
-
-            longitude = convert_to_degrees(gps_info['GPSLongitude'])
-            if gps_info['GPSLongitudeRef'] != 'E':
-                longitude = -longitude
-
-            return latitude, longitude
 
 # Combine date and time to create a proper datetime object
 def create_datetime(row):
