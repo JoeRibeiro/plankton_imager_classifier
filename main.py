@@ -18,28 +18,28 @@ if __name__ == "__main__":
     # Mandatory arguments
     parser.add_argument(
         '--source_dir', type=str,
-        # default="data/2024_HERAS",
+        default="data/2024_HERAS",
         help='Base directory for source data captured by the Pi-10'
     )
 
     parser.add_argument(
         '--model_name', type=str,
-        default="ResNet50-detailed",
+        default="OSPAR",
         help="Please input the name of the model to use. Options are 'OSPAR' and 'ResNet50-Detailed"
     )
 
     parser.add_argument(
         '--cruise_name', type=str,
-        # default="2024_HERAS",
+        default="2024_HERAS_OSPAR",
         help='Please input the name of the cruise/survey. Used for outputs and intermediate files.'
     )
 
     # Default arguments
-    parser.add_argument(
-        '--train_data_path', type=str,
-        default="data/DETAILED_merged",
-        help='Path to training data. Required for FastAI initialization'
-    )
+    # parser.add_argument(
+    #     '--train_data_path', type=str,
+    #     default="data/DETAILED_merged",
+    #     help='Path to training data. Required for FastAI initialization'
+    # )
 
     parser.add_argument(
         '--batch_size', type=int,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # Extract the arguments for use within the individual functions
     SOURCE_BASE_DIR = args.source_dir
     MODEL_NAME = args.model_name
-    TRAIN_DATASET = Path(args.train_data_path)
+    # TRAIN_DATASET = Path(args.train_data_path)
     BATCH_SIZE = args.batch_size
     CRUISE_NAME = args.cruise_name
     DENSITY_CONSTANT = args.density_constant
@@ -69,11 +69,13 @@ if __name__ == "__main__":
     # Set the correct model based on user input
     if 'ospar' in MODEL_NAME.lower():
         # OSPAR classifier for six number of classes; significantly faster compared to the default option
-        model_weights = Path('Plankton_imager_v01_stage-2_Best')
+        model_weights = Path('Plankton_imager_v03_stage-2_Best')
+        TRAIN_DATASET = Path('data/OSPAR_merged')
         print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}", flush=True)
     else:
         # Default option is the ResNet50 predicting 49 different plankton and non-plankton classes
         model_weights = Path('Plankton_imager_v01_stage-2_Best')
+        TRAIN_DATASET = Path('data/DETAILED_merged')
         MODEL_NAME = "ResNet50-Detailed" # Reset the variable in case different spelling is used
         print(f"[INFO] User has chosen to use the {MODEL_NAME} model with weights: {model_weights}, flush=True")
     

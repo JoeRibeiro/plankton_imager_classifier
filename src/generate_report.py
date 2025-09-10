@@ -430,11 +430,6 @@ def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATAS
             'figure_paths': figure_paths
         }
 
-
-        # TODO: Remove
-        if class_id > 3:
-            break
-
     # Create Word document
     document = Document()
     document.add_heading(f'Automated report for {CRUISE_NAME} survey', 0)

@@ -2,7 +2,8 @@ import os
 import shutil
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
-from concurrent.futures import ThreadPoolExecutor
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, TimeoutError
 
 def is_corrupted(file_path):
     """Check if a TIFF file is corrupted."""
@@ -34,35 +35,43 @@ def process_file(file_path, timestamp, destination_folder):
                 dest_path = os.path.join(destination_folder, f"{timestamp}_{name}{ext}")
                 counter += 1
 
-            shutil.move(file_path, dest_path)
+            # shutil.move(file_path, dest_path)
+            shutil.copy2(file_path, dest_path)
             print(f"Moved corrupted file: {file_path} -> {dest_path}")
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
 
-def process_corrupted_files(imgs, timestamp, cruise_name, max_jobs=8):
+def process_corrupted_files(imgs, timestamp, cruise_name, max_jobs=4, timeout=60):
     """
-    Check each image in imgs for corruption, and move corrupted images to a destination folder.
-    The destination folder will be created as "data/{cruise_name}_corrupted".
-
-    Args:
-        imgs: List of file paths to check
-        cruise_name: Name to use for the destination folder
-        max_jobs: Number of parallel workers to use (default: 8)
+    Process images in parallel, killing workers if they exceed timeout.
     """
     base_dir = "data"
     destination_folder = os.path.join(base_dir, f"{cruise_name}_corrupted")
 
-    # Create the destination folder (and base_dir if needed)
+    print(f"[INFO] Destination folder: {destination_folder}")
     os.makedirs(destination_folder, exist_ok=True)
 
-    # Process files in parallel
-    with ThreadPoolExecutor(max_workers=max_jobs) as executor:
-        futures = [executor.submit(process_file, file_path, timestamp, destination_folder)
-                  for file_path in imgs]
+    print(f"[INFO] Starting processing with {max_jobs} workers (timeout={timeout}s)")
 
-        # Wait for all tasks to complete
-        for future in futures:
+    with ProcessPoolExecutor(max_workers=max_jobs, mp_context=mp.get_context("spawn")) as executor:
+        futures = {
+            executor.submit(process_file, f, timestamp, destination_folder): f
+            for f in imgs
+        }
+        print(f"[INFO] All files submitted for processing. Waiting for completion...")
+
+        for i, future in enumerate(futures, 1):
+            file_path = futures[future]
             try:
-                future.result()
+                future.result(timeout=timeout)
+            except TimeoutError:
+                print(f"[WARNING] Timeout while processing {file_path}")
+                # Kill and replace worker
+                executor.shutdown(wait=False, cancel_futures=True)
+                print("[INFO] Restarting worker pool after timeout...")
+                return process_corrupted_files(imgs[i:], timestamp, cruise_name, max_jobs, timeout)
             except Exception as e:
-                print(f"Error in processing: {e}")
+                print(f"[ERROR] {file_path}: {e}")
+
+            if i % 10000 == 0:
+                print(f"[INFO] Processed {i:,}/{len(imgs):,} files")

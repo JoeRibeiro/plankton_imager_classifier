@@ -113,12 +113,15 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
                     tar.extractall(path=temp_dir)
                     print(f"[INFO] Extracted {tar_file} to temporary directory")
 
-                    # Determine the extracted directory path
-                    extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
-                    if not extracted_dirs:
-                        timestamp_path = temp_dir
-                    else:
-                        timestamp_path = os.path.join(temp_dir, extracted_dirs[0])
+                    timestamp_path = temp_dir
+                    print(f"[DEBUG] timestamp_path: {timestamp_path}")
+
+                    # # Determine the extracted directory path
+                    # extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
+                    # if not extracted_dirs:
+                    #     timestamp_path = temp_dir
+                    # else:
+                    #     timestamp_path = os.path.join(temp_dir, extracted_dirs[0])
 
                     # Retrieve all available images within the folder (including Background.tif files)
                     imgs = get_image_files(timestamp_path)
@@ -142,11 +145,15 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
                             print(f"\n\n[WARNING] Corrupted files found in {timestamp_path}\n\n")
                             
                             # Remove corrupted files
-                            process_corrupted_files(imgs, timestamp, CRUISE_NAME, max_jobs)
+                            process_corrupted_files(imgs, timestamp, CRUISE_NAME)
 
                             # Since we removed several files, we have to reload the available images
                             imgs = get_image_files(timestamp_path)
                             imgs.sort()
+
+                            # Remove any files already marked corrupted
+                            corrupt_folder = Path(f"data/{CRUISE_NAME}_corrupted")
+                            imgs = [f for f in imgs if not (corrupt_folder / f.name).exists()]
 
                             # Repeat steps, without corrupted files
                             dl = learn.dls.test_dl(imgs)

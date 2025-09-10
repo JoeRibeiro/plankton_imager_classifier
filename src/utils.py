@@ -405,7 +405,14 @@ def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
         for col in metadata_cols:
             summary_df[col] = metadata.get(col, None)
 
+        all_files = os.listdir(timestamp_path)
+        non_tif_files = [f for f in all_files if not f.lower().endswith('.tif')]
+        print(f"[DEBUG] Contents of timestamp_path (excluding .tif files): {non_tif_files}")
+
         hits_misses_path = os.path.join(timestamp_path, "HitsMisses.txt")
+        print(f"[DEBUG] hits_misses_path: {hits_misses_path}")
+        print(f"[DEBUG] Does HitsMisses.txt exist: {os.path.exists(hits_misses_path)}")
+        
         if os.path.exists(hits_misses_path):
             with open(hits_misses_path) as f:
                 lines = f.read().strip().split("\n")
@@ -426,6 +433,7 @@ def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
 
                     # Calculate density in N/L
                     summary_df['density'] = (summary_df['total_counts'] / summary_df['subsample_factor']) / DENSITY_CONSTANT
+                    print(f"[DEBUG] Density:\n{summary_df[['pred_label','density']]}")
 
         else:
             summary_df['subsample_factor'] = 0
