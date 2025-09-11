@@ -137,68 +137,6 @@ def compute_class_statistics(df, total_images, DENSITY_CONSTANT):
 
     return stats_dict
 
-# Per-class data summaries
-def preprocess_data(df, class_id, DENSITY_CONSTANT):
-    # Filter the DataFrame for the specified class
-    class_df = df.filter(pl.col("pred_id") == class_id).sort(by='datetime')
-
-    total_class_images = class_df.height
-    if total_class_images == 0:
-        print(f"[INFO] No images were classified as {class_df['pred_label'].first()}.")
-        return
-
-    # General statistics
-    total_images = df.height
-    percentage_total = (total_class_images / total_images) * 100
-
-    # Group by 10-minute intervals and aggregate
-    grouped_df = (
-        class_df
-        .with_columns(pl.col("datetime").str.to_datetime())  # Convert 'datetime' to datetime type
-        .group_by_dynamic("datetime", every="10m")
-        .agg([
-            pl.col("id").first(),
-            pl.col("date").first(),
-            pl.col("time").first(),
-            pl.col("pred_conf").mean().alias("pred_conf"),
-            pl.col("pred_id").first(),
-            pl.col("pred_label").first(),
-            pl.col("density").mean()
-            # (pl.len() / DENSITY_CONSTANT).alias("density") # Density in N/L
-        ])
-    )
-
-    # Create a simple DataFrame to pretty-print the output statistics
-    # Note the two different DataFrames used, with the density statistics being grouped per 10 minute bins
-    data = pd.DataFrame({
-        "Metric": [
-            "Class ID",
-            'Class',
-            "Number of predictions",
-            "Percentage of total images",
-            "Min confidence",
-            "Max confidence",
-            "Average confidence",
-            "Min density",
-            "Max density",
-            "Average density"
-        ],
-        "Value": [
-            class_id,
-            grouped_df['pred_label'].first(),
-            f"{total_class_images:,}",
-            f"{percentage_total:.2f} %",
-            f"{class_df['pred_conf'].min() * 100:.2f} %",
-            f"{class_df['pred_conf'].max() * 100:.2f} %",
-            f"{class_df['pred_conf'].mean() * 100:.2f} %",
-            f"{grouped_df['density'].min():.2f} n/L",
-            f"{grouped_df['density'].max():.2f} n/L",
-            f"{grouped_df['density'].mean():.2f} n/L"
-        ]
-    })
-
-    return class_df, grouped_df, data
-
 # Compute entire cruise-path
 def create_cruise_path(lazy_df, CRUISE_NAME):
     print("[INFO] Creating GeoDataFrame of cruise path")
@@ -298,6 +236,12 @@ def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATAS
         print("[INFO] Renamed 'label' column to 'pred_id' for backwards compatibility")
     else:
         print("[INFO] No 'label' column found, continuing with 'pred_id'")
+
+    # Force suspect columns to Float64
+    lazy_df = lazy_df.with_columns([
+        pl.col("subsample_factor").cast(pl.Float64),
+        pl.col("density").cast(pl.Float64)
+    ])
 
     # Then load in essential information to dynamically loop over the data later on
     total_rows = lazy_df.select(pl.len()).collect().item()

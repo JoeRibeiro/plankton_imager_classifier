@@ -39,6 +39,12 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         print("[INFO] Renamed 'label' column to 'pred_id' for backwards compatibility")
     else:
         print("[INFO] No 'label' column found, continuing with 'pred_id'")
+    
+    # Force suspect columns to Float64
+    lazy_df = lazy_df.with_columns([
+        pl.col("subsample_factor").cast(pl.Float64),
+        pl.col("density").cast(pl.Float64)
+    ])
 
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = list(range(0, len(pred_labels))) # Get list of one-hot encoded IDs
