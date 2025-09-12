@@ -29,23 +29,28 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
     pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
 
     if not csv_files:
-        print(f'[DEBUG] No CSV files found in {results_dir}')
-        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
-    lazy_df = pl.concat([pl.scan_csv(str(file)) for file in csv_files])
-    
-    # Check if 'label' column exists and rename only if necessary
-    if "label" in lazy_df.collect_schema().keys():
-        lazy_df = lazy_df.rename({"label": "pred_id"})
-        print("[INFO] Renamed 'label' column to 'pred_id' for backwards compatibility")
-    else:
-        print("[INFO] No 'label' column found, continuing with 'pred_id'")
-    
-    # Force suspect columns to Float64
-    lazy_df = lazy_df.with_columns([
-        pl.col("subsample_factor").cast(pl.Float64),
-        pl.col("density").cast(pl.Float64)
-    ])
+        print(f'[INFO] No CSV files found in {results_dir}')
+        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")\
 
+    # Process each CSV file individually to ensure consistent schema
+    lazy_dfs = []
+    for file in csv_files:
+        # Read the CSV file
+        df = pl.scan_csv(str(file))
+
+        # Apply schema corrections immediately
+        df = df.with_columns([
+            pl.col("density").cast(pl.Float64),
+            pl.col("subsample_factor").cast(pl.Float64),
+            pl.col("lat").cast(pl.Float64),
+            pl.col("lon").cast(pl.Float64),
+        ])
+
+        lazy_dfs.append(df)
+
+    # Now concatenate the standardized lazy dataframes
+    lazy_df = pl.concat(lazy_dfs)
+        
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = list(range(0, len(pred_labels))) # Get list of one-hot encoded IDs
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
