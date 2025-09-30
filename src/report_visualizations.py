@@ -382,7 +382,7 @@ def plot_confidence(class_df):
         pc.set_edgecolor('black')
 
     plt.yticks(range(1, len(full_labels) + 1), full_labels)
-    plt.title(f'{class_df['pred_label'].iloc[0]} vs top-5 related classes', fontsize=11)
+    plt.title(f"{class_df['pred_label'].iloc[0]} vs top-5 related classes", fontsize=11)
     plt.xlabel('Confidence [%]')
     ax.grid(which='major', axis='y', linestyle='--', linewidth=0.5)
 
