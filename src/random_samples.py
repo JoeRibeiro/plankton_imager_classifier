@@ -108,34 +108,36 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
 
         # Process each file
         for filename, tar_path in zip(filenames, tar_files):
+            try:
+                # Create temporary directory for extraction
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    # Open tar file and extract the specific file
+                    with tarfile.open(tar_path, 'r') as tar:
+                        # Try both slash formats without scanning all entries
+                        # Implemented to prevent iterating over all files within the .tar
+                        file_obj = None
+                        for path in (f"RawImages/{filename}", f"RawImages\\{filename}"):
+                            try:
+                                file_obj = tar.extractfile(path)
+                                if file_obj:
+                                    break  # Success
+                            except KeyError:
+                                continue  # Try next format
 
-            # Create temporary directory for extraction
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Open tar file and extract the specific file
-                with tarfile.open(tar_path, 'r') as tar:
-                    # Try both slash formats without scanning all entries
-                    # Implemented to prevent iterating over all files within the .tar
-                    file_obj = None
-                    for path in (f"RawImages/{filename}", f"RawImages\\{filename}"):
-                        try:
-                            file_obj = tar.extractfile(path)
-                            if file_obj:
-                                break  # Success
-                        except KeyError:
-                            continue  # Try next format
+                        if file_obj is None:
+                            raise FileNotFoundError(
+                                f"[ERROR] File '{filename}' not found in tar '{tar_path}'"
+                            )
 
-                    if file_obj is None:
-                        raise FileNotFoundError(
-                            f"[ERROR] File '{filename}' not found in tar '{tar_path}'"
-                        )
+                        # Construct destination path
+                        dest_path = os.path.join(class_dir, os.path.basename(filename))
 
-                    # Construct destination path
-                    dest_path = os.path.join(class_dir, os.path.basename(filename))
-
-                    # Write to disk directly
-                    with open(dest_path, 'wb') as out_f:
-                        shutil.copyfileobj(file_obj, out_f)
-                        # print(f"[INFO] Extracted and copied {filename} to {dest_path}")
-
+                        # Write to disk directly
+                        with open(dest_path, 'wb') as out_f:
+                            shutil.copyfileobj(file_obj, out_f)
+                            # print(f"[INFO] Extracted and copied {filename} to {dest_path}")
+            except Exception as e:
+                print(f"[ERROR] Error processing file '{filename}' in tar '{tar_path}': {e}")
+                continue
         print(f"[INFO] Finished processing class {class_id}. Copied {len(sampled_df)} files.")
     print(f"[INFO] Finished processing all classes.")
