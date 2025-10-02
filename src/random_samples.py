@@ -34,9 +34,14 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
 
     # Process each CSV file individually to ensure consistent schema
     lazy_dfs = []
-    for file in csv_files:
+    for file in list(csv_files):
         # Read the CSV file
         df = pl.scan_csv(str(file))
+
+        if len(df.collect_schema().names()) < len(pred_labels):
+            print(f"[WARNING] {file.name} has fewer columns than expected ({len(df.collect_schema().names())}).")
+            csv_files.remove(file)
+            continue # Skip incomplete CSV's
 
         # Apply schema corrections immediately
         df = df.with_columns([
@@ -44,12 +49,15 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
             pl.col("subsample_factor").cast(pl.Float64),
             pl.col("lat").cast(pl.Float64),
             pl.col("lon").cast(pl.Float64),
+            pl.col("pred_id").cast(pl.Float64),        # was Int64 / Utf8
+            pl.col("pred_conf").cast(pl.Float64),      # was Float64 / Utf8
+            pl.col("total_counts").cast(pl.Float64),   # was Float64 / Utf8
         ])
 
         lazy_dfs.append(df)
 
-    # Now concatenate the standardized lazy dataframes
-    lazy_df = pl.concat(lazy_dfs)
+    # Concatenate all lazy frames, filling missing columns with nulls
+    lazy_df = pl.concat(lazy_dfs, how="diagonal")
         
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = list(range(0, len(pred_labels))) # Get list of one-hot encoded IDs

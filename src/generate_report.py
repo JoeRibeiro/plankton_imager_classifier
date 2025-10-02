@@ -222,6 +222,9 @@ def create_cruise_path(lazy_df, CRUISE_NAME):
 def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATASET, MODEL_FILENAME):
     print(f"[INFO] Reading DataFrames in folder: {results_dir}")
 
+    # Get prediction labels for post-processing
+    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
+
     # To reduce memory load from ~80GB CSV files, we use Polars + LazyFrames
     # First create glob pattern to find available .csv files
     csv_files = list(Path(results_dir).glob("*.csv"))
@@ -231,9 +234,14 @@ def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATAS
     
     # Process each CSV file individually to ensure consistent schema
     lazy_dfs = []
-    for file in csv_files:
+    for file in list(csv_files):
         # Read the CSV file
         df = pl.scan_csv(str(file))
+
+        if len(df.collect_schema().names()) < len(pred_labels):
+            print(f"[WARNING] {file.name} has fewer columns than expected ({len(df.collect_schema().names())}).")
+            csv_files.remove(file)
+            continue # Skip incomplete CSV's
 
         # Apply schema corrections immediately
         df = df.with_columns([
@@ -241,21 +249,20 @@ def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATAS
             pl.col("subsample_factor").cast(pl.Float64),
             pl.col("lat").cast(pl.Float64),
             pl.col("lon").cast(pl.Float64),
+            pl.col("pred_id").cast(pl.Float64),        # was Int64 / Utf8
+            pl.col("pred_conf").cast(pl.Float64),      # was Float64 / Utf8
+            pl.col("total_counts").cast(pl.Float64),   # was Float64 / Utf8
         ])
 
         lazy_dfs.append(df)
 
-    # Now concatenate the standardized lazy dataframes
-    lazy_df = pl.concat(lazy_dfs)
+    # Concatenate all lazy frames, filling missing columns with nulls
+    lazy_df = pl.concat(lazy_dfs, how="diagonal")
 
     # Then load in essential information to dynamically loop over the data later on
     total_rows = lazy_df.select(pl.len()).collect().item()
     total_classes = lazy_df.select(pl.col("pred_id").unique()).collect().to_series().to_list()
     print(f"[INFO] Read DataFrame. Started processing {total_rows:,} rows.")
-
-    # Get prediction labels for post-processing
-    # pred_labels is a global variable (for now)
-    pred_labels = get_pred_labels(TRAIN_DATASET, MODEL_FILENAME)
 
     # Initialize data structures
     class_stats = [] # To store statistics in general table
