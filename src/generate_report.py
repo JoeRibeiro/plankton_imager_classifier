@@ -286,6 +286,7 @@ def create_word_document(results_dir, CRUISE_NAME, DENSITY_CONSTANT, TRAIN_DATAS
     # Iterate over each class to read in less volume, compared ot the entire dataset at once
     # Can still be reasonably high (>10,000,000 rows) with some classes (e.g., detritus)
     for class_id in total_classes:
+        class_id = int(class_id)
         print(f"{'-' * 50}")
         print(f"[INFO] Processing class {class_id}")
 

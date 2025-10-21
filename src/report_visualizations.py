@@ -416,7 +416,7 @@ def plot_density_graph(class_df, class_id, pred_labels):
     n_rows = (len(unique_dates) + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows), sharey=True)
     axes = axes.flatten()
-    pred_label = pred_labels[class_id] # Return pred label
+    pred_label = pred_labels[int(class_id)] # Return pred label
     fig.suptitle(f"Class: {pred_label}", fontsize=11)
 
     for idx, (ax, date) in enumerate(zip(axes, unique_dates)):
@@ -591,7 +591,7 @@ def plot_class_density_map(class_df, class_id, pred_labels, cruise_path, CRUISE_
     ax.yaxis.set_major_locator(MultipleLocator(base=lon_spacing))
 
     # Add text in the top-left corner (as before)
-    pred_label = pred_labels[class_id]
+    pred_label = pred_labels[int(class_id)]
     text_content = f"Cruise: {CRUISE_NAME}\nSpecies: {pred_label}"
     ax.text(0.02, 0.98, text_content, transform=ax.transAxes,
             fontsize=8, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))

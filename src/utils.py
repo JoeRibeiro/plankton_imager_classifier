@@ -378,8 +378,8 @@ def get_geographic_data(image_path):
         return degrees + (minutes / 60.0) + (seconds / 3600.0)
 
     # Extract latitude-longitude from the EXIF metadata
-    print(f"Filepath for retrival: {image_path}")
-    print(f"Does Background.tif exist: {os.path.exists(image_path)}")
+    # print(f"Filepath for retrival: {image_path}")
+    # print(f"Does Background.tif exist: {os.path.exists(image_path)}")
 
     with Image.open(image_path) as image:
         exif_data = image.getexif()
@@ -447,11 +447,11 @@ def summarize_predictions(df_raw, timestamp_path, DENSITY_CONSTANT):
 
         all_files = os.listdir(timestamp_path)
         non_tif_files = [f for f in all_files if not f.lower().endswith('.tif')]
-        print(f"[DEBUG] Contents of timestamp_path (excluding .tif files): {non_tif_files}")
+        # print(f"[DEBUG] Contents of timestamp_path (excluding .tif files): {non_tif_files}")
 
         hits_misses_path = os.path.join(timestamp_path, "HitsMisses.txt")
-        print(f"[DEBUG] hits_misses_path: {hits_misses_path}")
-        print(f"[DEBUG] Does HitsMisses.txt exist: {os.path.exists(hits_misses_path)}")
+        # print(f"[DEBUG] hits_misses_path: {hits_misses_path}")
+        # print(f"[DEBUG] Does HitsMisses.txt exist: {os.path.exists(hits_misses_path)}")
         
         if os.path.exists(hits_misses_path):
             with open(hits_misses_path) as f:

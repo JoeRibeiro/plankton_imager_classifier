@@ -2,7 +2,7 @@
 
 # Custom imports
 from src.utils import analyze_tif_files, plot_category_examples
-from train_resnet import train_resnet
+from src.train_resnet import train_resnet50
 
 def train(MODEL_NAME, MODEL_TYPE, TRAIN_DATASET, BATCH_SIZE, OUTPUT_NAME):
     # Plot simple figure describing the training set
@@ -13,7 +13,7 @@ def train(MODEL_NAME, MODEL_TYPE, TRAIN_DATASET, BATCH_SIZE, OUTPUT_NAME):
     # plot_category_examples(TRAIN_DATASET, output_path='doc/train_example.png')
 
     # Execute training for ResNet50
-    train_resnet(MODEL_NAME, MODEL_TYPE, TRAIN_DATASET, BATCH_SIZE, OUTPUT_NAME)
+    train_resnet50(MODEL_NAME, MODEL_TYPE, TRAIN_DATASET, BATCH_SIZE, OUTPUT_NAME)
 
     # Space for other model implementations
 

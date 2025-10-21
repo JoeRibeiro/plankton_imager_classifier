@@ -18,7 +18,7 @@ if __name__ == "__main__":
     # Mandatory arguments
     parser.add_argument(
         '--source_dir', type=str,
-        default="data/2024_HERAS",
+        default="data/demo_inference",
         help='Base directory for source data captured by the Pi-10'
     )
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--cruise_name', type=str,
-        default="2024_HERAS_OSPAR",
+        default="demo_PIUG",
         help='Please input the name of the cruise/survey. Used for outputs and intermediate files.'
     )
 

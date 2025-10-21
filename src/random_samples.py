@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 import tarfile
 import tempfile
+import random
 
 # Custom imports
 from src.generate_report import get_pred_labels
@@ -30,7 +31,15 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
 
     if not csv_files:
         print(f'[INFO] No CSV files found in {results_dir}')
-        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")\
+        raise FileNotFoundError(f"[ERROR] No CSV files found in {results_dir}")
+    
+    # As large datasets of Pi-10 (>3TB) can cause memory issues due to CSV's being around 300GB (~3900 files)
+    # We limit how many files to process to avoid OOM issues
+    MAX_FILES_TO_PROCESS = 1000
+    if len(csv_files) > MAX_FILES_TO_PROCESS:
+        rng = random.Random(42)
+        csv_files = rng.sample(csv_files, MAX_FILES_TO_PROCESS)
+        print(f"[INFO] Selected {len(csv_files)} random CSV files out of {len(list(Path(results_dir).glob('*.csv')))}")
 
     # Process each CSV file individually to ensure consistent schema
     lazy_dfs = []
@@ -87,6 +96,7 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
         if subset_df.height == 0:
             print(f"[WARNING] Class {class_id} has no rows. Skipping.")
             continue
+        
         # Randomly sample rows from the DataFrame
         try:
             # Normally you should have more images predicted than num_samples
@@ -99,6 +109,10 @@ def get_random_samples(results_dir,  CRUISE_NAME, TRAIN_DATASET, MODEL_FILENAME,
 
         # Create class directory
         class_dir = os.path.join(output_dir, f"{str(class_id)}_{pred_label}")
+        if os.path.exists(class_dir):
+            print(f"[INFO] Skipping class {pred_label}. Directory already exists: {class_dir})")
+            continue
+
         os.makedirs(class_dir, exist_ok=True)
         print(f"[INFO] Created directory for class: {class_dir}")
         
