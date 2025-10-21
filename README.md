@@ -4,7 +4,7 @@
 
 > The Plankton Imager Classifier predicts different plankton and non-plankton classes from data captured by the Plankton Imager ([Pi-10](https://www.planktonanalytics.com/)) sensor. 
 
-#![Img](./doc/istockphoto-1441350218-1024x1024.jpg)
+![Img](./doc/temp_plankton.png)
 
 ## Getting Started
 ### Data set-up
@@ -52,10 +52,10 @@ python main.py --source_dir data/YOUR_DATA_PATH --model_name ResNet50-detailed -
 ```
 
 Options available in `main.py`:
-* `source_dir`: This should be the path to your data folder directly from the Pi-10. It is recommended to store this within the repository in `/data/`. Be aware that due to the untarring process within the pipeline, the volume of data will be doubled.
-* `model_name`: This corresponds to the model to use for inference. Options available are: `ospar` to use the OSPAR classifier (XX classes), or `ResNet50-detailed` to use the ResNet50 model which predicts 49 different plankton and non-plankton clases
+* `source_dir`: This should be the path to your data folder directly from the Pi-10. It is recommended to store this within the repository in `/data/`.
+* `model_name`: This corresponds to the model to use for inference. Options available are: `ospar` to use the OSPAR classifier (12 classes), or `ResNet50-detailed` to use the ResNet50 model which predicts 49 different plankton and non-plankton classes.
 * `cruise_name`: This is used for intermediate outputs and for generating the final report. Any string is accepted without any spaces in the name, use '-' or '_' instead.
-* `batch_size`: Number of samples to use within `inference.py`. This is highly dependent on the available memory within your PC/HPC. Default value of 300 is used for 32GB of RAM.  
+* `batch_size`: Number of samples to use within `inference.py`. This is highly dependent on the available memory within your PC/HPC. Default value of 32 is recommended for local machines. 
 
 ## Dataset Requirements
 Use the original dataset structure as provided by the Pi-10 imager without modifications.
@@ -103,14 +103,6 @@ CRUISE_NAME_UNTARRED
 │   │   ├── RawImages\pia7.2024-06-24.1454+N00000003.tif
 │   │   ├── RawImages\pia7.2024-06-24.1454+N00000004.tif
 ```
-
-## Time estimations
-To give a rough estimate on the total processing time required, below we share results on an experimental trial. A dataset of ~54GB was used on a local machine with 32GB of RAM and a NVIDIA RTX A5500. Time estimates are as follows:
-1. **Untarring**: 38 minutes
-2. **Corruption check**:
-3. **Inference**:
-4. **Random sampling**:
-5. **Generating report**: 
 
 ## Future implementations
 1. Refactor `remove_corrupted_files.py` to increase processing speed

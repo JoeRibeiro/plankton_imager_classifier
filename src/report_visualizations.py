@@ -492,6 +492,11 @@ def plot_class_density_map(class_df, class_id, pred_labels, cruise_path, CRUISE_
         ])
     )
 
+    # Filter out (0, 0) coordinates
+    grouped_df = grouped_df.filter(
+        ~((pl.col("lat") == 0) & (pl.col("lon") == 0))
+    )
+
     # Convert to a GeoDataFrame
     df_pandas = grouped_df.to_pandas().set_index('datetime')
 

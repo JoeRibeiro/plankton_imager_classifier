@@ -150,6 +150,10 @@ def create_cruise_path(lazy_df, CRUISE_NAME):
             pl.col("lon").first().alias("lon"),
             pl.col("time").first().alias("time")
         ])
+        # Filter out (0, 0) coordinates in Polars
+        .filter(
+            ~((pl.col("lat") == 0) & (pl.col("lon") == 0))
+        )
     ).collect().to_pandas()
 
     # Handle any datetime column taken at midnight (00:00), which does not get a timestamp attached within the datetime
