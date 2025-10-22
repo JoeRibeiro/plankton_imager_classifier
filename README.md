@@ -45,7 +45,7 @@ conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geop
 ### Usage
 ```
 # To start the entire pipeline, navigate to your working directory
-cd PATH/TO/WORKING_DIRECTORY
+cd C:\Users\JR13\Documents\LOCAL_NOT_ONEDRIVE\plankton_imager_classifier
 
 # Run the classifier
 # See options below
