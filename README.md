@@ -50,7 +50,7 @@ cd C:\Users\JR13\Documents\LOCAL_NOT_ONEDRIVE\plankton_imager_classifier
 # Run the classifier
 # See options below
 # Not implemented yet
-python main.py --source_dir data/YOUR_DATA_PATH --model_name ResNet50-detailed --cruise_name SURVEY_NAME --batch_size 300
+python main.py --source_dir C:\Users\JR13\Downloads\1300 --model_name ResNet50-detailed --cruise_name PELTIC --batch_size 300
 
 # For more detailed options, see `main.py`
 ```
