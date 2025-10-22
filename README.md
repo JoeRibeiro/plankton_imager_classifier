@@ -1,3 +1,5 @@
+Personal fork as installation instructions were not working for me. Trying to find out why not
+
 # Plankton Imager Classifier
 [[`paper`](https://google.com)]
 [[`dataset`](https://google.com)]
@@ -17,23 +19,25 @@
 
 ### Anaconda set-up
 ```
-# install the classifier and its dependencies
-pip install git@github.com:geoJoost/plankton_imager_classifier.git
-
-# Setup the environment
-conda create --name plankton_imager
-
+In miniforge prompt on WINDOWS, specify python version that is compatible with fastai (python 3.12.11 was not):
+conda create --name plankton_imager python=3.11
 conda activate plankton_imager
+
+# Could not install plankton_imager_classifier, needed to clone it:
+cd C:\Users\JR13\Documents\LOCAL_NOT_ONEDRIVE
+git clone https://github.com/geoJoost/plankton_imager_classifier.git
+cd plankton_imager_classifier
 
 conda install pip
 
 pip install fastai
 
+# Here I use pip rather than the pip3 command because windows
 # IMPORTANT: Modify this installation link to the correct CUDA/CPU version
 # Check the CUDA version using `nvidia-smi` in the command-line
 # If no CUDA is available, use the CPU installation; Be aware that this is significantly slower and discouraged for larger datasets
 # See: https://pytorch.org/get-started/locally/
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 conda install -c conda-forge pandas numpy polars seaborn xlsxwriter chardet geopandas python-docx memory_profiler pyarrow fiona pyproj
 ```
