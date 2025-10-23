@@ -18,7 +18,10 @@ from src.remove_corrupted_files import process_corrupted_files
 from src.utils import process_predictions_to_dataframe
 
 
+
+
 def ensure_dummy_dataset(model_weights, train_dataset_path):
+    # Skip if already populated
     if os.path.exists(train_dataset_path) and len(os.listdir(train_dataset_path)) > 0:
         return
     base = str(model_weights)
@@ -55,18 +58,22 @@ def ensure_dummy_dataset(model_weights, train_dataset_path):
         print(f"[INFO] Created {num_classes} generic class folders.")
     os.makedirs(train_dataset_path, exist_ok=True)
     for cname in class_names:
-        folder_path=os.path.join(train_dataset_path, cname)
-        os.makedirs(folder_path, exist_ok=True)        
-        if os.path.isdir(folder_path):
-            dummy_path = os.path.join(folder_path, 'dummy.tif')
-            if not os.path.exists(dummy_path):
-                img = Image.new('L', (1, 1))  # 1x1 pixel grayscale
-                img.save(dummy_path)
-                print(f"Added dummy image to {folder_path}")
+        folder_path = os.path.join(train_dataset_path, cname)
+        os.makedirs(folder_path, exist_ok=True)
+        for f in os.listdir(folder_path):
+            if f.startswith('dummy_') and f.endswith('.tif'):
+                os.remove(os.path.join(folder_path, f))
+        for i in range(100):
+            width = random.randint(10, 100)
+            height = random.randint(10, 100)
+            img = Image.new('L', (width, height))
+            dummy_path = os.path.join(folder_path, f'dummy_{i:03d}.tif')
+            img.save(dummy_path)
+        print(f"Added 100 dummy images to {folder_path}")
     print(f"[INFO] Created dummy folder structure at '{train_dataset_path}'")
     
     
-
+    
 def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN_DATASET, CRUISE_NAME, BATCH_SIZE, DENSITY_CONSTANT, max_jobs):
 
     print(f"[INFO] Started inference...", flush=True)
@@ -102,7 +109,15 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
             Normalize.from_stats(*imagenet_stats)]
     )
     dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE, num_workers=0) # Note: on Windows set to 0; can silently fail on HPC systems
+    print("DEBUG: FastAI class vocab:", dls.vocab)
+    print("DEBUG: Number of classes:", len(dls.vocab))
+    print("DEBUG: All image files found:", len(dls.items))
+    print("DEBUG: Example image paths and their parent labels:")
+    for img_path in dls.items[:20]:  # Show first 20
+        print(f"  {img_path} -> {img_path.parent.name}")
+
     learn = vision_learner(dls, resnet50, metrics=error_rate, pretrained=False)
+    
     
     # Check for multiple GPUs and use DataParallel if available
     # NOTE: Not debugged; not recommended to use multiple GPU's without coding expertise
