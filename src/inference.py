@@ -11,16 +11,70 @@ import time
 from datetime import timedelta
 import sys
 import tarfile, tempfile
+from PIL import Image
 
 # Custom modules
 from src.remove_corrupted_files import process_corrupted_files
 from src.utils import process_predictions_to_dataframe
 
+
+def ensure_dummy_dataset(model_weights, train_dataset_path):
+    if os.path.exists(train_dataset_path) and len(os.listdir(train_dataset_path)) > 0:
+        return
+    base = str(model_weights)
+    if base.endswith('.pth'):
+        base = base[:-4]
+    search_paths = [
+        os.path.join('models', base + '.pth'),
+        base + '.pth'
+    ]
+    model_file = next((p for p in search_paths if os.path.exists(p)), None)
+    if model_file is None:
+        raise FileNotFoundError(f"Model weights file not found: tried {search_paths}")
+    classnames_csv = model_file + '.classnames.csv'
+    if not os.path.exists(classnames_csv):
+        classnames_csv = os.path.splitext(model_file)[0] + '.classnames.csv'
+    class_names = None
+    if os.path.exists(classnames_csv):
+        with open(classnames_csv, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            class_names = [row[0] for row in reader if row]
+        print(f"[INFO] Loaded {len(class_names)} class names from {classnames_csv}")
+    if not class_names:
+        state_dict = torch.load(model_file, map_location='cpu')
+        num_classes = None
+        for key in reversed(state_dict.keys()):
+            if key.endswith('.weight') and isinstance(state_dict[key], torch.Tensor):
+                weight_shape = state_dict[key].shape
+                if len(weight_shape) == 2:
+                    num_classes = weight_shape[0]
+                    break
+        if num_classes is None:
+            raise ValueError("Could not determine number of classes from model weights.")
+        class_names = [f'class_{i}' for i in range(num_classes)]
+        print(f"[INFO] Created {num_classes} generic class folders.")
+    os.makedirs(train_dataset_path, exist_ok=True)
+    for cname in class_names:
+        folder_path=os.path.join(train_dataset_path, cname)
+        os.makedirs(folder_path, exist_ok=True)        
+        if os.path.isdir(folder_path):
+            dummy_path = os.path.join(folder_path, 'dummy.tif')
+            if not os.path.exists(dummy_path):
+                img = Image.new('L', (1, 1))  # 1x1 pixel grayscale
+                img.save(dummy_path)
+                print(f"Added dummy image to {folder_path}")
+    print(f"[INFO] Created dummy folder structure at '{train_dataset_path}'")
+    
+    
+
 def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN_DATASET, CRUISE_NAME, BATCH_SIZE, DENSITY_CONSTANT, max_jobs):
+
     print(f"[INFO] Started inference...", flush=True)
+    print(f'{SOURCE_BASE_DIR}, {MODEL_NAME}, {model_weights}, {TRAIN_DATASET}, {CRUISE_NAME}, {BATCH_SIZE}, {DENSITY_CONSTANT}, {max_jobs}')
     start_time = time.time()
     np.random.seed(42)
-
+    
+    ensure_dummy_dataset(str(model_weights), str(TRAIN_DATASET))
     # Set the device to use GPU if available, else fall back to CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Device used: {device}")
@@ -47,7 +101,7 @@ def conduct_plankton_inference(SOURCE_BASE_DIR, MODEL_NAME, model_weights, TRAIN
             pad_mode='zeros'),
             Normalize.from_stats(*imagenet_stats)]
     )
-    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE, num_workers=1) # Note: on Windows set to 0; can silently fail on HPC systems
+    dls = block.dataloaders(TRAIN_DATASET, bs=BATCH_SIZE, num_workers=0) # Note: on Windows set to 0; can silently fail on HPC systems
     learn = vision_learner(dls, resnet50, metrics=error_rate, pretrained=False)
     
     # Check for multiple GPUs and use DataParallel if available

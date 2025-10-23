@@ -40,6 +40,7 @@ if __name__ == "__main__":
     #     default="data/DETAILED_merged",
     #     help='Path to training data. Required for FastAI initialization'
     # )
+    
 
     parser.add_argument(
         '--batch_size', type=int,
