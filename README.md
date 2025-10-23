@@ -1,6 +1,6 @@
 Personal fork as installation instructions were not working for me. Trying to find out why not.
 I am running like:
-python main.py --source_dir C:\Users\JR13\Downloads\scallopsurvey\2025-05-07 --model_name OSPAR --cruise_name PELTIC --batch_size 300
+python main.py --source_dir C:\Users\JR13\Downloads\scallopsurvey --model_name OSPAR --cruise_name PELTIC --batch_size 300
 
 # Plankton Imager Classifier
 [[`paper`](https://google.com)]
