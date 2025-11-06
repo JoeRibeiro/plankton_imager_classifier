@@ -1,0 +1,606 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Different gpu chips are spun up each time but the virtual disk is preserved. this can lead to errors like out-of memory etc:"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "bb3128e8-9909-4e0d-bf04-5883e1bbe3fb"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import os\n",
+        "import shutil\n",
+        "import subprocess\n",
+        "\n",
+        "def get_disk_usage(path=\"/\"):\n",
+        "    \"\"\"Returns disk usage in GB.\"\"\"\n",
+        "    total, used, free = shutil.disk_usage(path)\n",
+        "    return {\n",
+        "        \"total_GB\": round(total / (2**30), 2),\n",
+        "        \"used_GB\": round(used / (2**30), 2),\n",
+        "        \"free_GB\": round(free / (2**30), 2)\n",
+        "    }\n",
+        "\n",
+        "def clean_directories(directories):\n",
+        "    \"\"\"Deletes contents of specified directories.\"\"\"\n",
+        "    for dir_path in directories:\n",
+        "        if os.path.exists(dir_path):\n",
+        "            for filename in os.listdir(dir_path):\n",
+        "                file_path = os.path.join(dir_path, filename)\n",
+        "                try:\n",
+        "                    if os.path.isfile(file_path) or os.path.islink(file_path):\n",
+        "                        os.unlink(file_path)\n",
+        "                    elif os.path.isdir(file_path):\n",
+        "                        shutil.rmtree(file_path)\n",
+        "                except Exception as e:\n",
+        "                    print(f\"Failed to delete {file_path}: {e}\")\n",
+        "\n",
+        "# Directories to clean\n",
+        "temp_dirs = [\n",
+        "    \"/tmp\",\n",
+        "    os.path.expanduser(\"~/temp\"),\n",
+        "    os.path.expanduser(\"~/cache\"),\n",
+        "    os.path.expanduser(\"~/Downloads\"),\n",
+        "    os.path.expanduser(\"~/scratch\")  # Add any custom paths you use\n",
+        "]\n",
+        "\n",
+        "print(\"Disk usage before cleanup:\", get_disk_usage())\n",
+        "clean_directories(temp_dirs)\n",
+        "print(\"Disk usage after cleanup:\", get_disk_usage())\n"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": "Disk usage before cleanup: {'total_GB': 118.05, 'used_GB': 70.09, 'free_GB': 47.95}\nFailed to delete /tmp/GGjEBBeMb9: [Errno 13] Permission denied: '/tmp/GGjEBBeMb9'\nFailed to delete /tmp/systemd-private-3edbae30e4f746b08be51def9389bb67-earlyoom.service-6TkUn3: [Errno 13] Permission denied: '/tmp/systemd-private-3edbae30e4f746b08be51def9389bb67-earlyoom.service-6TkUn3'\nFailed to delete /tmp/snap-private-tmp: [Errno 13] Permission denied: '/tmp/snap-private-tmp'\nDisk usage after cleanup: {'total_GB': 118.05, 'used_GB': 70.09, 'free_GB': 47.95}\n"
+        }
+      ],
+      "execution_count": 8,
+      "metadata": {
+        "gather": {
+          "logged": 1762444479187
+        }
+      },
+      "id": "86b0f9cf-fc06-498a-9de6-e43024fc0b47"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Setup AzureML Environment and Clone Repository\n"
+      ],
+      "metadata": {},
+      "id": "fd32aa50-89a1-4f0a-87ee-7af08336b07f"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Select your compute, set up and choose an a100 instance. Call it a100instance.\n",
+        "\n",
+        "Select the kernel option for python 3.10 - Pytorch and Tensorflow"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "e574bab8-85f9-4f55-bfbc-3ab2f4511db1"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Look under \"connections\", where you need to add your blob container as a datastore, and to authenticate your git credentials (associate with azure)."
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "b7842272-bccc-47f9-bc7f-4059d8e68244"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Under notebooks, below files / samples, there are 5 icons. One of those is the terminal. Open that and git clone your repository there. You will need to authenticate with a PAT (token).\n",
+        "\n"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "82107490-4557-4adb-8e6e-946ff29f978b"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"This is how you need to build an environment in azure ml\")\n",
+        "print(os.getcwd())\n",
+        "\n",
+        "from azureml.core import Environment, Workspace\n",
+        "from azureml.core.conda_dependencies import CondaDependencies\n",
+        "import os\n",
+        "import subprocess\n",
+        "!sudo apt-get install libgl1-mesa-glx\n",
+        "\n",
+        "# Set up the workspace\n",
+        "ws = Workspace.get(name=\"citdsdp4000nc6s-mlw\",\n",
+        "                   subscription_id=\"25c7e1b1-ff04-418b-842b-29a58e065da7\",\n",
+        "                   resource_group=\"CIT-DS-RG-DP4000-NC6S\")\n",
+        "\n",
+        "environment_name = \"plankton_imager_classifier\"\n",
+        "version=1\n",
+        "try:\n",
+        "    # Attempt to retrieve the environment\n",
+        "    Environment.get(workspace=ws, name=environment_name, version=version)\n",
+        "    environment_exists=True  # Environment exists\n",
+        "except Exception:\n",
+        "    environment_exists=False\n",
+        "print(environment_exists)\n",
+        "\n",
+        "env = Environment(name=environment_name)\n",
+        "\n",
+        "# Set up Conda dependencies\n",
+        "conda_dep = CondaDependencies()\n",
+        "\n",
+        "# Specify Python version here!\n",
+        "conda_dep.add_conda_package(\"python=3.11\")\n",
+        "\n",
+        "requirements_file = \"requirements_azure.txt\"\n",
+        "\n",
+        "with open(requirements_file, \"r\") as file:\n",
+        "    for line in file:\n",
+        "        package = line.strip()\n",
+        "        print(package)\n",
+        "        if package and not package.startswith(\"#\"):  # Ignore comments and empty lines\n",
+        "            conda_dep.add_pip_package(package)\n",
+        "\n",
+        "env.python.conda_dependencies = conda_dep\n",
+        "\n",
+        "env.register(workspace=ws)\n",
+        "compute_name = \"e4dsv4\" # The env is not specific to a compute. BUILDING the env needs a compute\n",
+        "\n",
+        "# Build the environment\n",
+        "if environment_exists==False:\n",
+        "    print('submitting a job to build your environment. Check \"Jobs\"')\n",
+        "    env.build(ws, compute_name)\n"
+      ],
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": "This is how you need to build an environment in azure ml\n/mnt/batch/tasks/shared/LS_root/mounts/clusters/e4dsv4/code/Users/joseph.ribeiro/plankton_imager_classifier\nReading package lists... Done\nBuilding dependency tree... Done\nReading state information... Done\nlibgl1-mesa-glx is already the newest version (23.0.4-0ubuntu1~22.04.1).\nThe following packages were automatically installed and are no longer required:\n  apport-symptoms bind9-utils dns-root-data gyp libaec-dev libaec0\n  libhdf5-103-1 libhdf5-cpp-103-1 libhdf5-fortran-102 libhdf5-hl-100\n  libhdf5-hl-cpp-100 libhdf5-hl-fortran-100 libjs-events libjs-inherits\n  libjs-is-typedarray libjs-psl libjs-source-map libjs-sprintf-js\n  libjs-typedarray-to-buffer libnode-dev libsz2 libuv1-dev node-abab\n  node-abbrev node-agent-base node-ansi-regex node-ansi-styles node-ansistyles\n  node-aproba node-archy node-are-we-there-yet node-argparse node-arrify\n  node-asap node-asynckit node-balanced-match node-brace-expansion\n  node-builtins node-cacache node-chalk node-chownr node-clean-yaml-object\n  node-cli-table node-clone node-color-convert node-color-name node-colors\n  node-columnify node-combined-stream node-commander\n  node-console-control-strings node-copy-concurrently node-core-util-is\n  node-coveralls node-cssom node-cssstyle node-debug node-decompress-response\n  node-defaults node-delayed-stream node-delegates node-depd node-diff\n  node-encoding node-end-of-stream node-err-code node-escape-string-regexp\n  node-esprima node-events node-fancy-log node-fetch node-foreground-child\n  node-form-data node-fs-write-stream-atomic node-fs.realpath\n  node-function-bind node-gauge node-get-stream node-glob node-got\n  node-graceful-fs node-growl node-has-flag node-has-unicode\n  node-https-proxy-agent node-iconv-lite node-iferr node-imurmurhash\n  node-indent-string node-inflight node-inherits node-ini node-ip\n  node-ip-regex node-is-buffer node-is-plain-obj node-is-typedarray\n  node-isarray node-isexe node-js-yaml node-jsdom node-json-buffer\n  node-json-parse-better-errors node-jsonparse node-kind-of node-lcov-parse\n  node-lodash-packages node-log-driver node-lowercase-keys node-lru-cache\n  node-mime node-mime-types node-mimic-response node-minimatch node-minimist\n  node-minipass node-mkdirp node-move-concurrently node-ms node-mute-stream\n  node-negotiator node-nopt node-npm-bundled node-npmlog node-object-assign\n  node-once node-opener node-osenv node-p-cancelable node-p-map\n  node-path-is-absolute node-process-nextick-args node-promise-inflight\n  node-promise-retry node-promzard node-psl node-pump node-punycode\n  node-quick-lru node-read node-readable-stream node-resolve node-retry\n  node-rimraf node-run-queue node-safe-buffer node-semver node-set-blocking\n  node-signal-exit node-slash node-slice-ansi node-source-map\n  node-source-map-support node-spdx-correct node-spdx-exceptions\n  node-spdx-expression-parse node-spdx-license-ids node-sprintf-js node-ssri\n  node-stack-utils node-stealthy-require node-string-decoder node-string-width\n  node-strip-ansi node-supports-color node-tap node-tap-mocha-reporter\n  node-tap-parser node-text-table node-time-stamp node-tmatch\n  node-tough-cookie node-typedarray-to-buffer node-unique-filename\n  node-universalify node-util-deprecate node-validate-npm-package-license\n  node-validate-npm-package-name node-wcwidth.js node-webidl-conversions\n  node-whatwg-fetch node-which node-wide-align node-wrappy\n  node-write-file-atomic node-ws node-yallist python3-apport\n  python3-problem-report python3-systemd\nUse 'sudo apt autoremove' to remove them.\n0 upgraded, 0 newly installed, 0 to remove and 8 not upgraded.\nsubmitting a job to build your environment. Check \"Jobs\"\n"
+        },
+        {
+          "output_type": "execute_result",
+          "execution_count": 12,
+          "data": {
+            "text/plain": "<azureml.core.environment.ImageBuildDetails at 0x7cfed4aab3d0>"
+          },
+          "metadata": {}
+        }
+      ],
+      "execution_count": 12,
+      "metadata": {
+        "collapsed": false,
+        "tags": [],
+        "gather": {
+          "logged": 1762445009212
+        },
+        "jupyter": {
+          "outputs_hidden": false
+        }
+      },
+      "id": "a82cc9a5-8f24-4d88-b105-8d92fd4a0832"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Our git repository contains not just code but also a model .pth file so we need to increase the allowance\n",
+        "\n",
+        "\n",
+        "\n",
+        "wdirect=os.getcwd() \n",
+        "import azureml\n",
+        "from azureml.core import ScriptRunConfig, Experiment\n",
+        "from azureml.core.compute import ComputeTarget\n",
+        "import azureml._restclient.snapshots_client\n",
+        "azureml._restclient.snapshots_client.SNAPSHOT_MAX_SIZE_BYTES = 1073741824 #1GB\n",
+        "azureml._restclient.constants.SNAPSHOT_MAX_SIZE_BYTES = 1073741824\n",
+        "\n",
+        "\n",
+        "# Define your compute target\n",
+        "compute_target = ComputeTarget(workspace=ws, name=\"e4dsv4\")\n",
+        "\n",
+        "# Define the command-line arguments for the script \n",
+        "arguments = [\n",
+        "    '--folder', 'data/examples/',\n",
+        "    '--output', './outputs/classifications.csv', # This is actually ending up in /mnt/azureml/cr/j/707202a285c94a24b8001fd1dd0f2c02/exe/wd/data/classifications.csv\n",
+        "    '-m', '2',\n",
+        "    '-b', '100'\n",
+        "]\n",
+        "\n",
+        "print(\"You should set your ScriptRunConfig source directory to:\")\n",
+        "print(os.getcwd())\n",
+        "\n",
+        "# Create a ScriptRunConfig\n",
+        "src = ScriptRunConfig(\n",
+        "    source_directory=\"/mnt/batch/tasks/shared/LS_root/mounts/clusters/a100instance/code/Users/joseph.ribeiro//rapid-plankton/edge-ai\",\n",
+        "    script='classifier.py',  # Script to run\n",
+        "    arguments=arguments,  # Command-line arguments for the script\n",
+        "    compute_target=compute_target,\n",
+        "    environment=env\n",
+        ")\n",
+        "\n",
+        "# Submit the experiment\n",
+        "experiment = Experiment(workspace=ws, name='my-gpu-experiment')\n",
+        "run = experiment.submit(config=src)\n",
+        "run.wait_for_completion(show_output=True)\n",
+        "\n",
+        "\n",
+        "file_names = run.get_file_names()\n",
+        "print(f\"Files in run: {file_names}\")\n",
+        "\n",
+        "\n",
+        "print(\"Experiment completed.\")\n",
+        "run.download_files(\"outputs/classifications.csv\", output_directory='/mnt/batch/tasks/shared/LS_root/mounts/clusters/a100instance/code/Users/joseph.ribeiro/')\n",
+        "# I think this should download the std_log.txt. The print statement in this log \"/mnt/azureml/cr/j/38a670803a1a447cbc7d3eefec4f46f2/exe/wd\" indicates where the run took place. But this way of running seems wrong. I need to accept that classifier.py needs modification to also run from azure and upload to blob."
+      ],
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1762442815672
+        }
+      },
+      "id": "e804a8f0-2139-4f5c-a195-cc80d0ed7f61"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from azureml.core import Workspace, Datastore \n",
+        "from azure.storage.blob import BlobServiceClient \n",
+        "import pandas as pd \n",
+        "from io import StringIO \n",
+        "import tarfile \n",
+        "import os\n",
+        "\n",
+        "\n",
+        "container_name = 'cend09-25-mpa-echannel-earlysummer' \n",
+        "datastore_name = 'cend0925mpaechannelearlysummer'\n",
+        "\n",
+        "datastore = Datastore.get(ws, datastore_name)\n",
+        "\n",
+        "blob_account_name = datastore.account_name \n",
+        "blob_account_token = datastore.sas_token\n",
+        "print(datastore.sas_token)\n",
+        "blob_service_client = BlobServiceClient( account_url=f\"https://{blob_account_name}.blob.core.windows.net\", credential=blob_account_token )\n",
+        "\n",
+        "container_client = blob_service_client.get_container_client(container_name)\n",
+        "\n",
+        "# An example of how to upload file to blob storage (to extract the results or outputs after a job run)\n",
+        "if False:\n",
+        "    with open(\"/mnt/batch/tasks/shared/LS_root/mounts/clusters/a100instance/code/Users/joseph.ribeiro//outputs/classifications.csv\", \"rb\") as data:\n",
+        "        container_client.upload_blob(name=\"classifications.csv\", data=data, overwrite=True)\n",
+        "    print(f\"File classifications.csv has been uploaded to Blob Storage. done.\")\n"
+      ],
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1762442815742
+        }
+      },
+      "id": "cfe7d43e-e1d4-46ef-9574-bb928862e5ab"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "It seems that a compute instance typcially has ~100 GB of free storage, so the above approach should be fine usually but it depends on the size of folder and what compute instance you have chosen. But I still need to change this approach to move the data INTO the compute direct from blob, and that is my next task. Currently it just comes from an \"examples\" directory. Also once done, I should move the examples back to where they were."
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "addf93bf-91b8-40cf-b9be-eb85dd29abfd"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# populate list of blob folders to submit a job for - convert to code cell if you wish to run this (done as a means of skipping this bit)\n",
+        "\n",
+        "import os\n",
+        "import concurrent.futures\n",
+        "from datetime import datetime, timedelta\n",
+        "\n",
+        "# Initialize a global list to keep track of successful downloads\n",
+        "successful_downloads = []\n",
+        "\n",
+        "def download_blob(blob_service_client, container_name, blob_path, download_path):\n",
+        "    blob_client = blob_service_client.get_blob_client( blob=blob_path)\n",
+        "    print(f\"Downloading {blob_path} to {download_path}...\")\n",
+        "    try:\n",
+        "        with open(download_path, \"wb\") as download_file:\n",
+        "            download_file.write(blob_client.download_blob().readall())\n",
+        "        os.remove(download_path)\n",
+        "        print(f\"File {download_path} downloaded and deleted successfully.\")\n",
+        "        successful_downloads.append(blob_path)  # Add the successful blob path to the list\n",
+        "    except Exception as e:\n",
+        "        print(f\"Failed to download {blob_path} or delete the file: {e}\")\n",
+        "\n",
+        "def download_files_for_days(blob_service_client, container_name, start_date, end_date, destination_folder='tempfolder'):\n",
+        "    tasks = []\n",
+        "    current_date = start_date\n",
+        "    # Create a ThreadPoolExecutor with up to 100 concurrent downloaders\n",
+        "    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:\n",
+        "        while current_date <= end_date:\n",
+        "            day_str = current_date.strftime('%Y-%m-%d')\n",
+        "            for hour in range(24):\n",
+        "                for minute in range(60):\n",
+        "                    blob_path = f\"{day_str}/{hour:02d}{minute:02d}/Background.tif\"\n",
+        "                    download_path = os.path.join(destination_folder, f\"Background_{day_str}_{hour:02d}{minute:02d}.tif\")\n",
+        "                    if not os.path.exists(destination_folder):\n",
+        "                        os.makedirs(destination_folder)\n",
+        "                    # Submit the download task to the executor\n",
+        "                    future = executor.submit(download_blob, blob_service_client, container_name, blob_path, download_path)\n",
+        "                    tasks.append(future)\n",
+        "            current_date += timedelta(days=1)\n",
+        "        # Wait for all tasks to complete\n",
+        "        for future in concurrent.futures.as_completed(tasks):\n",
+        "            future.result()\n",
+        "\n",
+        "\n",
+        "print(successful_downloads)\n",
+        "\n",
+        "start_date = datetime(2024, 5, 16)\n",
+        "end_date = datetime(2024, 5, 23)\n",
+        "download_files_for_days(container_client, container_name, start_date, end_date)\n",
+        "\n",
+        "dataset_folders = [path.replace('Background.tif', '') for path in successful_downloads]\n",
+        "print(dataset_folders)\n",
+        "\n",
+        "import shutil\n",
+        "shutil.rmtree(\"tempfolder\")\n"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "60d6d7f1-0065-4f8c-a20c-ac03d281e5af"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "\n"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "a6a17c10-cd5d-4a6a-b2cf-51988f5648d5"
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from azureml.core import Dataset, Experiment, Workspace\n",
+        "from azureml.core.compute import ComputeTarget\n",
+        "from azureml.core.script_run_config import ScriptRunConfig\n",
+        "from azureml.core.environment import Environment\n",
+        "\n",
+        "# Filter blobs that are .tar files only\n",
+        "tar_blobs = [blob for blob in container_client.list_blobs() if blob.name.endswith('.tar')]\n",
+        "\n",
+        "i=0\n",
+        "for blob in tar_blobs:\n",
+        "    i=i+1\n",
+        "    if i>0#:49:\n",
+        "        folder_name = blob.name\n",
+        "\n",
+        "        # Register dataset\n",
+        "        dataset = Dataset.File.from_files(path=(datastore, '/' + folder_name))\n",
+        "        dataset = dataset.register(workspace=ws, name=folder_name, create_new_version=True)\n",
+        "        dataset = Dataset.get_by_name(ws, name=folder_name)\n",
+        "        print(\"Dataset registered for .tar file:\", folder_name)\n",
+        "\n",
+        "        # Configure and submit job\n",
+        "        src = ScriptRunConfig(\n",
+        "            source_directory=\"/mnt/batch/tasks/shared/LS_root/mounts/clusters/a100instance/code/Users/joseph.ribeiro/rapid-plankton/edge-ai\",\n",
+        "            script='azure_processing_tar_2025.py',\n",
+        "            arguments=['-m', '2',\n",
+        "                '-b', '2500',\n",
+        "                '--wsname', 'citdsdp4000nc6s-mlw',\n",
+        "                '--wssubscription_id', '25c7e1b1-ff04-418b-842b-29a58e065da7',\n",
+        "                '--wsresource_group', 'CIT-DS-RG-DP4000-NC6S',\n",
+        "                '--dsname', folder_name,\n",
+        "                '--datastorename', datastore_name],\n",
+        "            compute_target=compute_target,\n",
+        "            environment=env\n",
+        "        )\n",
+        "\n",
+        "        experiment = Experiment(workspace=ws, name='bigger-gpu-experiment')\n",
+        "        run = experiment.submit(config=src)\n",
+        "        run.wait_for_completion(show_output=True)\n"
+      ],
+      "outputs": [],
+      "execution_count": null,
+      "metadata": {
+        "jupyter": {
+          "source_hidden": false,
+          "outputs_hidden": false
+        },
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        },
+        "gather": {
+          "logged": 1762442815755
+        }
+      },
+      "id": "cc8f957e-9193-48f4-8932-ac377025a72b"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "This last chunk of code is converted to markdown because it was not working properly, but it should submit multiple jobs. In reality it was not working, the jobs never finish and I think the cpu is out of memory.\n",
+        "The solution here would be to use cupy to run the gps and size steps on the GPU (they are a bottleneck). But instead I will use a cheaper compute instance for now and accept the linear processing as we have no plankton imager project time this year..."
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "097d4daa-39a8-4958-a080-3868d3347f53"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "from concurrent.futures import ThreadPoolExecutor, as_completed\n",
+        "from azureml.core import Dataset, Experiment, Workspace\n",
+        "from azureml.core.script_run_config import ScriptRunConfig\n",
+        "from azureml.core.environment import Environment\n",
+        "\n",
+        "# Define the job submission function\n",
+        "def submit_job(blob_name):\n",
+        "    try:\n",
+        "        # Register dataset\n",
+        "        dataset = Dataset.File.from_files(path=(datastore, '/' + blob_name))\n",
+        "        dataset = dataset.register(workspace=ws, name=blob_name, create_new_version=True)\n",
+        "        dataset = Dataset.get_by_name(ws, name=blob_name)\n",
+        "        print(\"Dataset registered for .tar file:\", blob_name)\n",
+        "\n",
+        "        # Configure and submit job\n",
+        "        src = ScriptRunConfig(\n",
+        "            source_directory=\"/mnt/batch/tasks/shared/LS_root/mounts/clusters/a100instance/code/Users/joseph.ribeiro/rapid-plankton/edge-ai\",\n",
+        "            script='azure_processing_tar_2025.py',\n",
+        "            arguments=['-m', '2',\n",
+        "                '-b', '2500',\n",
+        "                '--wsname', 'citdsdp4000nc6s-mlw',\n",
+        "                '--wssubscription_id', '25c7e1b1-ff04-418b-842b-29a58e065da7',\n",
+        "                '--wsresource_group', 'CIT-DS-RG-DP4000-NC6S',\n",
+        "                '--dsname', blob_name,\n",
+        "                '--datastorename', datastore_name],\n",
+        "            compute_target=compute_target,\n",
+        "            environment=env\n",
+        "        )\n",
+        "\n",
+        "        experiment = Experiment(workspace=ws, name='bigger-gpu-experiment')\n",
+        "        run = experiment.submit(config=src)\n",
+        "        run.wait_for_completion(show_output=True)\n",
+        "        return f\"Completed: {blob_name}\"\n",
+        "    except Exception as e:\n",
+        "        return f\"Failed: {blob_name} with error {e}\"\n",
+        "\n",
+        "# Filter blobs that are .tar files only\n",
+        "tar_blobs = [blob.name for blob in container_client.list_blobs() if blob.name.endswith('.tar')]\n",
+        "\n",
+        "# Use ThreadPoolExecutor to submit jobs concurrently\n",
+        "with ThreadPoolExecutor(max_workers=3) as executor:\n",
+        "    futures = {executor.submit(submit_job, blob_name): blob_name for blob_name in tar_blobs}\n",
+        "    for future in as_completed(futures):\n",
+        "        result = future.result()\n",
+        "        print(result)\n"
+      ],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "ebb06dc9-b07b-4865-abfd-ea76b40c7007"
+    },
+    {
+      "cell_type": "markdown",
+      "source": [],
+      "metadata": {
+        "nteract": {
+          "transient": {
+            "deleting": false
+          }
+        }
+      },
+      "id": "ae190fe9-4982-42d8-9882-2b4e24619915"
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "name": "python38-azureml-pt-tf",
+      "language": "python",
+      "display_name": "Python 3.10 - Pytorch and Tensorflow"
+    },
+    "language_info": {
+      "name": "python",
+      "version": "3.10.16",
+      "mimetype": "text/x-python",
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "pygments_lexer": "ipython3",
+      "nbconvert_exporter": "python",
+      "file_extension": ".py"
+    },
+    "microsoft": {
+      "ms_spell_check": {
+        "ms_spell_check_language": "en"
+      },
+      "host": {
+        "AzureML": {
+          "notebookHasBeenCompleted": true
+        }
+      }
+    },
+    "kernel_info": {
+      "name": "python38-azureml-pt-tf"
+    },
+    "nteract": {
+      "version": "nteract-front-end@1.0.0"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
