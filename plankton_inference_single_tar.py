@@ -169,6 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--cruise_name", type=str, required=True)
     parser.add_argument("--dsname", type=str, required=True)
     parser.add_argument("--datastorename", type=str, required=True)
+    parser.add_argument("--outputdatastorename", type=str, default='inferenceresults')
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--density_constant", type=float, default=1.0)
     parser.add_argument("--wsname", type=str, default='citdsdp4000nc6s-mlw')
@@ -244,7 +245,7 @@ if __name__ == "__main__":
 
     if csv_result is not None:
         # Upload to Azure Blob Storage
-        datastore = get_datastore_path(ws, args.datastorename)
+        datastore = get_datastore_path(ws, args.outputdatastorename)
         blob_file_path = f"{args.dsname}/{os.path.basename(csv_result)}"
         upload_file_to_blob(datastore, csv_result, blob_file_path)
         print(f"Uploaded file to blob: {blob_file_path}")
