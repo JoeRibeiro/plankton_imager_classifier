@@ -45,7 +45,7 @@ def ensure_dummy_dataset(train_dataset_path):
     if train_dataset_path.exists() and any(train_dataset_path.iterdir()):
         return  # Already populated
 
-    class_names = [f"class_{i}" for i in range(12)]  # 12 classes
+    class_names = ['artefacts','bubbles','copepods','detritus','diatoms','dinoflagellates','fisheggs','fishlarvae','gelatinous','holoplankton','meroplankton','phytoplanktonother'] 
     train_dataset_path.mkdir(parents=True, exist_ok=True)
 
     for cname in class_names:
@@ -147,7 +147,7 @@ def process_single_tar(tar_file_path, model_weights, train_dataset, cruise_name,
                     results_dir=Path(temp_dir),
                     processed_dir=Path(temp_dir),
                     density_constant=density_constant,
-                    csv_filename=None,
+                    csv_filename="inference.csv",
                     tar_file_path=tar_file_path
                 )
 
